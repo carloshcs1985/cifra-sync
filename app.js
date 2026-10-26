@@ -5,8 +5,12 @@
   const K = window.CifraChords;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+  // liga um evento só se o elemento existir (página de outra versão não derruba o app)
+  const on = (sel, ev, fn) => { const n = $(sel); if (n) n.addEventListener(ev, fn); };
+  // grava uma propriedade só se o elemento existir
+  const setp = (sel, prop, val) => { const n = $(sel); if (n) n[prop] = val; };
 
-  const APP_VERSION = '4';
+  const APP_VERSION = '5';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -561,6 +565,7 @@
   }
   function renderChordbar() {
     const bar = el.chordbar;
+    if (!bar) return;
     const show = store.settings.diagrams && S.lines.length && !el.sheet.hidden;
     const names = [];
     if (show) for (let i = 0; i < S.lines.length; i++) for (const n of lineChords(i)) if (!names.includes(n)) names.push(n);
@@ -574,7 +579,7 @@
   }
   function focusChords(names, smooth = true) {
     const bar = el.chordbar;
-    if (bar.hidden) return;
+    if (!bar || bar.hidden) return;
     let first = null;
     for (const b of bar.children) {
       const on = names.includes(b.dataset.ch);
@@ -713,6 +718,10 @@
     if (S.viewingId && song) {
       el.banner.className = '';
       el.banner.innerHTML = `<span>Biblioteca: ${esc(song.title)}</span><button class="pill" data-a="back">${S.track ? 'Voltar à música atual' : 'Fechar'}</button>`;
+      el.banner.hidden = false;
+    } else if (S.versionWarn) {
+      el.banner.className = 'warn';
+      el.banner.innerHTML = `<span>${esc(S.versionWarn)}</span>`;
       el.banner.hidden = false;
     } else if (S.connMsg && S.track) {
       el.banner.className = 'warn';
@@ -872,7 +881,7 @@
         if (!t || !t.id || t.is_local || (t.type && t.type !== 'track')) continue;
         const artist = (t.artists || []).map((a) => a.name).join(', ');
         const key = C.normKey(artist, t.name);
-        const needLyrics = $('#pl-chordonly').checked;
+        const needLyrics = $('#pl-chordonly') ? $('#pl-chordonly').checked : true;
         if (hasSongFor(t.id, key, needLyrics)) { had++; continue; }
         const chordOnly = needLyrics && hasSongFor(t.id, key);
         if (queued.has(t.id) || store.queue.some((q) => q.key === key)) { dup++; continue; }
@@ -1111,20 +1120,20 @@
   function syncMenu() {
     const st = store.settings;
     $$('.opt').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.scrollMode));
-    $('#m-speed').value = st.speed;
-    $('#m-speed-val').textContent = st.speed + ' px/s';
+    setp('#m-speed', 'value', st.speed);
+    setp('#m-speed-val', 'textContent', st.speed + ' px/s');
     $('#m-speed-row').hidden = st.scrollMode !== 'fixed';
     $('#m-clear-anchors').hidden = !(currentSong() && (currentSong().anchors || []).length);
-    $('#m-fit').checked = !!st.fit;
-    $('#m-diagrams').checked = !!st.diagrams;
-    $('#m-light').checked = st.theme === 'light';
-    $('#m-client').value = st.clientId;
-    $('#m-redirect').textContent = REDIRECT_URI;
-    $('#m-connect-label').textContent = token ? 'Desconectar do Spotify' : 'Conectar ao Spotify';
-    $('#m-demo').checked = S.demo;
-    $('#m-lib-count').textContent = Object.keys(store.songs).length + ' salvas';
-    $('#m-queue-count').textContent = store.queue.length ? store.queue.length + ' músicas' : '';
-    $('#m-version').textContent = 'Cifra Sync · versão ' + APP_VERSION;
+    setp('#m-fit', 'checked', !!st.fit);
+    setp('#m-diagrams', 'checked', !!st.diagrams);
+    setp('#m-light', 'checked', st.theme === 'light');
+    setp('#m-client', 'value', st.clientId);
+    setp('#m-redirect', 'textContent', REDIRECT_URI);
+    setp('#m-connect-label', 'textContent', token ? 'Desconectar do Spotify' : 'Conectar ao Spotify');
+    setp('#m-demo', 'checked', S.demo);
+    setp('#m-lib-count', 'textContent', Object.keys(store.songs).length + ' salvas');
+    setp('#m-queue-count', 'textContent', store.queue.length ? store.queue.length + ' músicas' : '');
+    setp('#m-version', 'textContent', 'Cifra Sync · versão ' + APP_VERSION);
   }
   function applyTheme() {
     document.documentElement.dataset.theme = store.settings.theme;
@@ -1133,8 +1142,8 @@
 
   /* ---------- eventos ---------- */
   function bind() {
-    $('#btn-menu').addEventListener('click', openMenu);
-    $('#btn-edit').addEventListener('click', () => {
+    on('#btn-menu', 'click', openMenu);
+    on('#btn-edit', 'click', () => {
       const song = currentSong();
       if (song) openEditor(song.id);
       else if (S.track) openEditor(null);
@@ -1158,15 +1167,15 @@
       renderSheet();
       updateChrome();
     };
-    $('#key-down').addEventListener('click', () => transpose(-1));
-    $('#key-up').addEventListener('click', () => transpose(1));
+    on('#key-down', 'click', () => transpose(-1));
+    on('#key-up', 'click', () => transpose(1));
     const font = (f) => {
       store.settings.fontScale = Math.max(0.6, Math.min(2.2, +(store.settings.fontScale * f).toFixed(3)));
       save();
       applyFont();
     };
-    $('#font-down').addEventListener('click', () => font(1 / 1.1));
-    $('#font-up').addEventListener('click', () => font(1.1));
+    on('#font-down', 'click', () => font(1 / 1.1));
+    on('#font-up', 'click', () => font(1.1));
 
     el.btnRec.addEventListener('click', () => {
       if (!syncing()) { toast('Dê play nesta música no Spotify para marcar.'); return; }
@@ -1175,13 +1184,13 @@
       if (S.recording) { markAnchors(); if (!S.isPlaying) toast('Dê play e toque em cada linha quando ela começar.', 4000); }
       updateChrome();
     });
-    $('#rec-done').addEventListener('click', () => {
+    on('#rec-done', 'click', () => {
       S.recording = false;
       const n = (currentSong() && currentSong().anchors.length) || 0;
       toast(n ? `${n} marcação(ões) salva(s).` : 'Nenhuma marcação.');
       updateChrome();
     });
-    $('#rec-undo').addEventListener('click', undoAnchor);
+    on('#rec-undo', 'click', undoAnchor);
 
     el.sheet.addEventListener('click', (e) => {
       const ln = e.target.closest('.ln');
@@ -1190,7 +1199,7 @@
       if (cEl && !S.recording) {
         const p = C.parseChordToken(cEl.textContent);
         if (p) {
-          if (el.chordbar.hidden) toast('Ative "Mostrar diagramas dos acordes" no menu.');
+          if (!el.chordbar || el.chordbar.hidden) toast('Ative "Mostrar diagramas dos acordes" no menu.');
           else { hold(2500); focusChords([chordName(p)]); }
         }
       }
@@ -1244,37 +1253,37 @@
     });
 
     // editor
-    $('#ed-cancel').addEventListener('click', () => hide('#ov-editor'));
-    $('#ed-save').addEventListener('click', saveEditor);
-    $('#ed-delete').addEventListener('click', deleteSong);
-    $('#ed-paste').addEventListener('click', async () => {
+    on('#ed-cancel', 'click', () => hide('#ov-editor'));
+    on('#ed-save', 'click', saveEditor);
+    on('#ed-delete', 'click', deleteSong);
+    on('#ed-paste', 'click', async () => {
       const txt = await readClipboard();
       if (!txt) { toast('Não consegui ler a área de transferência. Toque e segure no campo para colar.', 4000); return; }
       $('#ed-text').value = C.cleanPasted(txt);
     });
-    $('#ed-cc').addEventListener('click', () => openUrl(C.cifraClubUrl($('#ed-artist').value, $('#ed-title').value)));
-    $('#ed-google').addEventListener('click', () => openUrl(C.googleUrl($('#ed-artist').value, $('#ed-title').value)));
+    on('#ed-cc', 'click', () => openUrl(C.cifraClubUrl($('#ed-artist').value, $('#ed-title').value)));
+    on('#ed-google', 'click', () => openUrl(C.googleUrl($('#ed-artist').value, $('#ed-title').value)));
 
     // biblioteca
-    $('#lib-close').addEventListener('click', () => hide('#ov-lib'));
-    $('#lib-new').addEventListener('click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
-    $('#lib-search').addEventListener('input', renderLib);
-    $('#lib-list').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
-    $('#lib-import').addEventListener('click', () => $('#import-songs').click());
-    $('#lib-pl').addEventListener('click', openPlaylists);
-    $('#lib-queue').addEventListener('click', openQueue);
+    on('#lib-close', 'click', () => hide('#ov-lib'));
+    on('#lib-new', 'click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
+    on('#lib-search', 'input', renderLib);
+    on('#lib-list', 'click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
+    on('#lib-import', 'click', () => $('#import-songs').click());
+    on('#lib-pl', 'click', openPlaylists);
+    on('#lib-queue', 'click', openQueue);
 
     // lote: arquivos, playlists e pendentes
-    $('#import-songs').addEventListener('change', (e) => {
+    on('#import-songs', 'change', (e) => {
       const fs = [...(e.target.files || [])];
       e.target.value = '';
       if (fs.length) importFiles(fs);
     });
-    $('#m-queue').addEventListener('click', openQueue);
-    $('#m-pl').addEventListener('click', openPlaylists);
-    $('#m-import-songs').addEventListener('click', () => { hide('#ov-menu'); $('#import-songs').click(); });
-    $('#pl-close').addEventListener('click', () => hide('#ov-pl'));
-    $('#pl-list').addEventListener('click', (e) => {
+    on('#m-queue', 'click', openQueue);
+    on('#m-pl', 'click', openPlaylists);
+    on('#m-import-songs', 'click', () => { hide('#ov-menu'); $('#import-songs').click(); });
+    on('#pl-close', 'click', () => hide('#ov-pl'));
+    on('#pl-list', 'click', (e) => {
       if (e.target.closest('[data-a="reauth"]')) { login(); return; }
       const b = e.target.closest('[data-pl]');
       if (!b) return;
@@ -1284,15 +1293,15 @@
       }
       importPlaylist(b.dataset.pl, b.dataset.name);
     });
-    $('#q-close').addEventListener('click', () => hide('#ov-queue'));
-    $('#q-clear').addEventListener('click', () => {
+    on('#q-close', 'click', () => hide('#ov-queue'));
+    on('#q-clear', 'click', () => {
       if (!confirm('Limpar toda a fila de pendentes?')) return;
       store.queue = [];
       queueActive = null;
       save();
       renderQueue();
     });
-    $('#q-list').addEventListener('click', (e) => {
+    on('#q-list', 'click', (e) => {
       if (e.target.closest('[data-a="from-pl"]')) { hide('#ov-queue'); openPlaylists(); return; }
       const b = e.target.closest('[data-qa]');
       const row = e.target.closest('[data-q]');
@@ -1300,9 +1309,9 @@
     });
 
     // menu
-    $('#ov-menu').addEventListener('click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
-    $('#m-close').addEventListener('click', () => hide('#ov-menu'));
-    $('#m-lib').addEventListener('click', () => { hide('#ov-menu'); openLib(); });
+    on('#ov-menu', 'click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
+    on('#m-close', 'click', () => hide('#ov-menu'));
+    on('#m-lib', 'click', () => { hide('#ov-menu'); openLib(); });
     $$('.opt').forEach((b) => b.addEventListener('click', () => {
       store.settings.scrollMode = b.dataset.mode;
       S.fixedRunning = false;
@@ -1312,8 +1321,8 @@
       updateChrome();
       updateWakeLock();
     }));
-    $('#m-speed').addEventListener('input', (e) => { store.settings.speed = +e.target.value; save(); syncMenu(); updateChrome(); });
-    $('#m-clear-anchors').addEventListener('click', () => {
+    on('#m-speed', 'input', (e) => { store.settings.speed = +e.target.value; save(); syncMenu(); updateChrome(); });
+    on('#m-clear-anchors', 'click', () => {
       const song = currentSong();
       if (!song || !confirm('Apagar as marcações de tempo desta música?')) return;
       song.anchors = [];
@@ -1323,11 +1332,11 @@
       syncMenu();
       toast('Marcações apagadas.');
     });
-    $('#m-fit').addEventListener('change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
-    $('#m-diagrams').addEventListener('change', (e) => { store.settings.diagrams = e.target.checked; save(); renderChordbar(); measure(); });
-    el.chordbar.addEventListener('click', (e) => { const b = e.target.closest('.cdi'); if (b) focusChords([b.dataset.ch]); });
-    $('#m-light').addEventListener('change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
-    $('#m-client').addEventListener('change', (e) => {
+    on('#m-fit', 'change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
+    on('#m-diagrams', 'change', (e) => { store.settings.diagrams = e.target.checked; save(); renderChordbar(); measure(); });
+    if (el.chordbar) el.chordbar.addEventListener('click', (e) => { const b = e.target.closest('.cdi'); if (b) focusChords([b.dataset.ch]); });
+    on('#m-light', 'change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
+    on('#m-client', 'change', (e) => {
       const v = e.target.value.trim();
       if (v === store.settings.clientId) return;
       store.settings.clientId = v;
@@ -1337,10 +1346,10 @@
       render();
       toast(v ? 'Client ID salvo.' : 'Client ID removido.');
     });
-    $('#m-copy').addEventListener('click', async () => {
+    on('#m-copy', 'click', async () => {
       try { await navigator.clipboard.writeText(REDIRECT_URI); toast('Endereço copiado.'); } catch { toast('Copie manualmente: ' + REDIRECT_URI, 5000); }
     });
-    $('#m-connect').addEventListener('click', () => {
+    on('#m-connect', 'click', () => {
       if (token) {
         clearToken();
         clearTimeout(pollTimer);
@@ -1356,14 +1365,14 @@
         login();
       }
     });
-    $('#m-export').addEventListener('click', exportBackup);
-    $('#m-import').addEventListener('click', () => $('#import-file').click());
-    $('#import-file').addEventListener('change', (e) => {
+    on('#m-export', 'click', exportBackup);
+    on('#m-import', 'click', () => $('#import-file').click());
+    on('#import-file', 'change', (e) => {
       const f = e.target.files && e.target.files[0];
       e.target.value = '';
       if (f) importBackup(f);
     });
-    $('#m-demo').addEventListener('change', (e) => {
+    on('#m-demo', 'change', (e) => {
       hide('#ov-menu');
       if (e.target.checked) startDemo();
       else stopDemo();
@@ -1395,7 +1404,10 @@
     if (pageV === APP_VERSION) { try { sessionStorage.removeItem('cifrasync.reloaded'); } catch {} return false; }
     let tried = false;
     try { tried = sessionStorage.getItem('cifrasync.reloaded') === '1'; sessionStorage.setItem('cifrasync.reloaded', '1'); } catch {}
-    if (tried) return false;
+    if (tried) {
+      S.versionWarn = `Atualização incompleta: a página está na versão ${pageV || 'antiga'} e o código na ${APP_VERSION}. Reenvie o index.html ao GitHub.`;
+      return false;
+    }
     location.reload();
     return true;
   }
@@ -1404,7 +1416,7 @@
     if (versionMismatch()) return;
     applyTheme();
     measureCharRatio();
-    bind();
+    try { bind(); } catch (e) { S.versionWarn = S.versionWarn || 'Erro ao iniciar: ' + e.message + '. Reenvie todos os arquivos ao GitHub.'; }
     try { await handleRedirect(); } catch (e) { toast('Erro no login: ' + e.message, 5000); }
     if (store.settings.demo) startDemo();
     else { setConn(token ? 'on' : 'off'); render(); if (token) poll(); }

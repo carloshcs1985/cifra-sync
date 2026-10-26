@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="3">
-<link rel="stylesheet" href="styles.css?v=3">
+<meta name="app-version" content="5">
+<link rel="stylesheet" href="styles.css?v=5">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -32,6 +32,7 @@
   </header>
 
   <div id="banner" hidden></div>
+  <div id="chordbar" hidden aria-label="Diagramas dos acordes"></div>
 
   <div class="stage">
     <main id="scroller">
@@ -109,6 +110,7 @@
     <h4>Exibição</h4>
     <div class="group">
       <label class="item"><span>Ajustar a cifra à largura da tela</span><input type="checkbox" id="m-fit"></label>
+      <label class="item"><span>Mostrar diagramas dos acordes</span><input type="checkbox" id="m-diagrams"></label>
       <label class="item"><span>Tema claro</span><input type="checkbox" id="m-light"></label>
     </div>
 
@@ -201,6 +203,7 @@
       <span class="pill ghost" aria-hidden="true">Fechar</span>
     </div>
     <p class="hint">As músicas sem cifra entram na fila de pendentes. O Spotify só libera as playlists criadas por você.</p>
+    <label class="group item"><span>Incluir músicas que só têm acordes (sem letra)</span><input type="checkbox" id="pl-chordonly" checked></label>
     <div id="pl-list" class="group scroll"></div>
   </div>
 </div>
@@ -222,7 +225,8 @@
 <input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="core.js?v=5"></script>
+<script src="chords.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
