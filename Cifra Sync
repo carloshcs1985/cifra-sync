@@ -1,0 +1,1875 @@
+/* Cifra Sync — interface, conexão com o Spotify e rolagem sincronizada. */
+(() => {
+  'use strict';
+  const C = window.CifraCore;
+  const $ = (s, root = document) => root.querySelector(s);
+  const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+
+  const STORE_KEY = 'cifrasync.v1';
+  const TOKEN_KEY = 'cifrasync.token';
+  const PKCE_KEY = 'cifrasync.pkce';
+  const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+  const REDIRECT_URI = location.origin + location.pathname.replace(/index\.html$/, '');
+  const API = 'https://api.spotify.com/v1';
+  const DEMO_TRACK = { id: 'demo:exemplo', title: 'Canção de Exemplo', artist: 'Cifra Sync · demonstração', duration: 100000, art: '' };
+
+  const DEMO_SHEET = [
+    '[Intro] G  D  Em  C',
+    '',
+    '[Riff]',
+    'E|-----------------3--|',
+    'B|-----0----1-----3---|',
+    'G|---0----0----0------|',
+    '',
+    '[Primeira Parte]',
+    '',
+    'G                 D',
+    '  Acordo cedo e a cidade ainda dorme',
+    'Em                C',
+    '  O violão me espera ao pé da cama',
+    'G                 D',
+    '  Cinco acordes e um café sem pressa',
+    'Em               C         D',
+    '  E a canção vai achando o seu lugar',
+    '',
+    '[Refrão]',
+    '',
+    'C          G',
+    '  Rola a cifra, segue o som',
+    'D            Em',
+    '  Não precisa parar a mão',
+    'C           G',
+    '  Cada verso no seu tom',
+    'D                 G',
+    '  Toca junto e vai, que é bom',
+    '',
+    '[Solo] Em  C  G  D  (2x)',
+    '',
+    '[Segunda Parte]',
+    '',
+    'G                 D',
+    '  Troquei o papel por uma tela',
+    'Em                C',
+    '  E o dedo só procura a corda certa',
+    'G                 D',
+    '  Se eu errar o tempo, marco a linha',
+    'Em               C         D',
+    '  E na próxima ela já me acerta',
+    '',
+    '[Refrão]',
+    '',
+    'C          G',
+    '  Rola a cifra, segue o som',
+    'D            Em',
+    '  Não precisa parar a mão',
+    'C           G',
+    '  Cada verso no seu tom',
+    'D                 G',
+    '  Toca junto e vai, que é bom',
+    '',
+    '[Final] C  D  G',
+  ].join('\n');
+
+  /* ---------- armazenamento local ---------- */
+  function readJSON(k, fb) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fb : v; } catch { return fb; } }
+  function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
+
+  const store = readJSON(STORE_KEY, null) || {};
+  store.songs = store.songs && typeof store.songs === 'object' ? store.songs : {};
+  store.settings = Object.assign(
+    { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false },
+    store.settings || {}
+  );
+  const save = () => { if (!writeJSON(STORE_KEY, store)) toast('Não consegui salvar (armazenamento cheio?)'); };
+
+  /* ---------- estado ---------- */
+  const S = {
+    track: null, trackSong: null, viewingId: null,
+    isPlaying: false, progress: 0, progressAt: 0,
+    demo: false, connMsg: '',
+    recording: false, undo: [], holdUntil: 0, scrollF: 0, curUnit: -1, resumeShown: false,
+    lines: [], types: [], units: null, pts: null, els: [], timeline: null, keyName: null,
+    fixedRunning: false, editing: null, lastTap: { i: -1, at: 0 },
+  };
+
+  const el = {
+    art: $('#art'), artPh: $('#art-ph'), title: $('#title'), artist: $('#artist'), conn: $('#conn'),
+    banner: $('#banner'), scroller: $('#scroller'), sheet: $('#sheet'), empty: $('#empty'),
+    resume: $('#resume'), fixedPill: $('#fixed-pill'), fixedToggle: $('#fixed-toggle'), fixedSpeed: $('#fixed-speed'),
+    recBar: $('#rec-bar'), time: $('#time'), dur: $('#dur'), fill: $('#progress-fill'), progress: $('#progress'),
+    play: $('#play'), key: $('#key'), btnRec: $('#btn-rec'), toast: $('#toast'),
+  };
+
+  /* ---------- utilidades ---------- */
+  let toastTimer;
+  function toast(msg, ms = 2800) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), ms);
+  }
+  const esc = C.esc;
+  const sign = (n) => (n > 0 ? '+' : '') + n;
+  const newId = () => 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const openUrl = (u) => window.open(u, '_blank', 'noopener');
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  const normTranspose = (t) => ((((t + 5) % 12) + 12) % 12) - 5; // -5..+6
+
+  function est() {
+    if (!S.track) return 0;
+    const p = S.progress + (S.isPlaying ? performance.now() - S.progressAt : 0);
+    return Math.max(0, S.track.duration ? Math.min(S.track.duration, p) : p);
+  }
+  const currentSong = () => (S.viewingId ? store.songs[S.viewingId] || null : S.trackSong);
+  const syncing = () => store.settings.scrollMode === 'spotify' && !S.viewingId && !!S.track && !!S.trackSong;
+
+  /* ---------- músicas ---------- */
+  function newSong(title, artist, sheet, trackId) {
+    const s = {
+      id: newId(), title: title || 'Sem título', artist: artist || '', sheet, transpose: 0, anchors: [],
+      trackIds: trackId ? [trackId] : [], key: C.normKey(artist, title), createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    store.songs[s.id] = s;
+    return s;
+  }
+  function findSongForTrack(track) {
+    const all = Object.values(store.songs);
+    let s = all.find((x) => x.trackIds && x.trackIds.includes(track.id));
+    if (s) return s;
+    const k = C.normKey(track.artist, track.title);
+    s = all.find((x) => x.key === k);
+    if (s) { s.trackIds.push(track.id); save(); }
+    return s || null;
+  }
+  function resolveTrackSong() { S.trackSong = S.track ? findSongForTrack(S.track) : null; }
+
+  /* ---------- Spotify: login PKCE (sem servidor, sem segredo) ---------- */
+  let token = readJSON(TOKEN_KEY, null);
+  function saveToken(j) {
+    token = {
+      access: j.access_token,
+      refresh: j.refresh_token || (token && token.refresh),
+      expiresAt: Date.now() + (j.expires_in || 3600) * 1000,
+    };
+    writeJSON(TOKEN_KEY, token);
+  }
+  function clearToken() { token = null; localStorage.removeItem(TOKEN_KEY); }
+  function authError(msg) { const e = new Error(msg || 'auth'); e.auth = true; return e; }
+
+  function randomString(n) {
+    const cs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const a = new Uint8Array(n);
+    crypto.getRandomValues(a);
+    return [...a].map((x) => cs[x % cs.length]).join('');
+  }
+  async function pkceChallenge(v) {
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+    return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function login() {
+    const cid = (store.settings.clientId || '').trim();
+    if (!cid) { openMenu(); toast('Cole primeiro o Client ID do seu app no Spotify.'); $('#m-client').focus(); return; }
+    if (!window.isSecureContext || !crypto.subtle) { toast('O login precisa de HTTPS (ou 127.0.0.1).'); return; }
+    if (S.demo) stopDemo(false);
+    const verifier = randomString(64);
+    const state = randomString(16);
+    writeJSON(PKCE_KEY, { verifier, state, at: Date.now() });
+    const p = new URLSearchParams({
+      response_type: 'code', client_id: cid, scope: SCOPES, redirect_uri: REDIRECT_URI, state,
+      code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier),
+    });
+    location.assign('https://accounts.spotify.com/authorize?' + p);
+  }
+
+  async function handleRedirect() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return;
+    history.replaceState(null, '', REDIRECT_URI);
+    const pk = readJSON(PKCE_KEY, null);
+    localStorage.removeItem(PKCE_KEY);
+    if (q.get('error')) { toast('O Spotify não autorizou: ' + q.get('error'), 5000); return; }
+    if (!pk || pk.state !== q.get('state')) { toast('O login expirou. Tente conectar de novo.', 5000); return; }
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code', code: q.get('code'), redirect_uri: REDIRECT_URI,
+      client_id: store.settings.clientId, code_verifier: pk.verifier,
+    });
+    const r = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast('Erro no login: ' + (j.error_description || j.error || r.status), 6000); return; }
+    saveToken(j);
+    toast('Spotify conectado');
+  }
+
+  let refreshing = null;
+  function refreshToken() {
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      if (!token || !token.refresh) { clearToken(); throw authError(); }
+      const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: token.refresh, client_id: store.settings.clientId });
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        if (r.status === 400 || r.status === 401) clearToken();
+        throw authError(j.error_description || j.error);
+      }
+      saveToken(j);
+    })().finally(() => { refreshing = null; });
+    return refreshing;
+  }
+  async function accessToken() {
+    if (!token) throw authError();
+    if (Date.now() > token.expiresAt - 60000) await refreshToken();
+    return token.access;
+  }
+
+  let backoffUntil = 0;
+  async function api(method, path, retry = true) {
+    const tok = await accessToken();
+    const t0 = performance.now();
+    const res = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + tok } });
+    const rtt = performance.now() - t0;
+    if (res.status === 401 && retry) { await refreshToken(); return api(method, path, false); }
+    if (res.status === 429) {
+      const ra = parseInt(res.headers.get('Retry-After'), 10);
+      backoffUntil = Date.now() + (Number.isFinite(ra) ? ra : 10) * 1000;
+    }
+    let body = null;
+    if (res.status !== 204) { const txt = await res.text(); if (txt) { try { body = JSON.parse(txt); } catch { /* sem JSON */ } } }
+    if (!res.ok) {
+      const er = body && body.error;
+      const e = new Error((er && (er.message || er)) || res.statusText || 'HTTP ' + res.status);
+      e.status = res.status;
+      e.reason = er && er.reason;
+      throw e;
+    }
+    return { status: res.status, body, rtt };
+  }
+
+  function friendlyError(e) {
+    const m = String((e && e.message) || '');
+    if (e && e.status === 403 && /regist/i.test(m)) return 'Sua conta não está liberada no app do Spotify. No painel do Spotify, em User Management, adicione o seu e-mail.';
+    if (e && e.status === 403 && /premium/i.test(m)) return 'O Spotify exige Premium para isso.';
+    if (e && e.status === 403) return 'O Spotify recusou o acesso (' + m + ').';
+    if (e && e.status === 429) return 'Muitas consultas ao Spotify. Aguardando um pouco…';
+    if (e instanceof TypeError) return 'Sem conexão com o Spotify.';
+    return 'Erro do Spotify: ' + m;
+  }
+
+  function pickArt(imgs) {
+    if (!Array.isArray(imgs) || !imgs.length) return '';
+    const sorted = imgs.filter((i) => i && i.url).sort((a, b) => (a.width || 0) - (b.width || 0));
+    const good = sorted.find((i) => (i.width || 0) >= 64);
+    return (good || sorted[sorted.length - 1] || {}).url || '';
+  }
+
+  /* ---------- leitura da música atual ---------- */
+  let pollTimer = null;
+  async function poll() {
+    clearTimeout(pollTimer);
+    if (S.demo || !token || document.visibilityState !== 'visible') return;
+    const wait = backoffUntil - Date.now();
+    if (wait > 0) { pollTimer = setTimeout(poll, wait); return; }
+    try {
+      const r = await api('GET', '/me/player/currently-playing?additional_types=track,episode');
+      S.connMsg = '';
+      setConn('on');
+      const it = r.body && r.body.item;
+      if (!it) {
+        S.isPlaying = false;
+        setTrack(null);
+      } else {
+        const artists = it.artists || (it.show ? [{ name: it.show.name }] : []);
+        const track = {
+          id: it.id || it.uri || 'local:' + it.name,
+          title: it.name || '—',
+          artist: artists.map((a) => a.name).join(', '),
+          duration: it.duration_ms || 0,
+          art: pickArt((it.album && it.album.images) || it.images),
+        };
+        const same = S.track && S.track.id === track.id;
+        const playing = !!r.body.is_playing;
+        const newProg = (r.body.progress_ms || 0) + (playing ? r.rtt / 2 : 0);
+        // pequenas diferenças são ignoradas para a rolagem não "tremer"
+        if (!(same && playing && S.isPlaying && Math.abs(newProg - est()) < 350)) {
+          S.progress = newProg;
+          S.progressAt = performance.now();
+        }
+        S.isPlaying = playing;
+        setTrack(track);
+      }
+    } catch (e) {
+      if (e.auth) {
+        setConn('off');
+        S.connMsg = 'A sessão do Spotify expirou. Conecte de novo.';
+        S.isPlaying = false;
+        setTrack(null);
+        render();
+        return;
+      }
+      setConn('err');
+      S.connMsg = friendlyError(e);
+    }
+    updateChrome();
+    updateWakeLock();
+    pollTimer = setTimeout(poll, S.isPlaying ? 2500 : 5000);
+  }
+
+  function setConn(state) {
+    el.conn.className = 'dot ' + state;
+    el.conn.title = { on: 'Spotify conectado', off: 'Spotify desconectado', err: 'Problema com o Spotify', demo: 'Demonstração' }[state] || '';
+  }
+
+  function setTrack(track) {
+    const changed = (track && track.id) !== (S.track && S.track.id);
+    S.track = track;
+    if (changed) {
+      S.recording = false;
+      resolveTrackSong();
+      S.curUnit = -1;
+      S.scrollF = 0;
+      el.scroller.scrollTop = 0;
+      render();
+    }
+  }
+
+  /* ---------- controles do player ---------- */
+  async function ctl(action) {
+    if (!S.track && action !== 'toggle') return;
+    const now = performance.now();
+    if (S.demo) {
+      if (!S.track) return;
+      if (action === 'toggle') { S.progress = est(); S.progressAt = now; S.isPlaying = !S.isPlaying; }
+      else if (action === 'back10') { S.progress = Math.max(0, est() - 10000); S.progressAt = now; }
+      else { S.progress = 0; S.progressAt = now; }
+      updateChrome();
+      updateWakeLock();
+      return;
+    }
+    if (!token) { toast('Conecte o Spotify primeiro.'); return; }
+    try {
+      if (action === 'toggle') {
+        const wasPlaying = S.isPlaying;
+        S.progress = est(); S.progressAt = now; S.isPlaying = !wasPlaying; updateChrome();
+        await api('PUT', wasPlaying ? '/me/player/pause' : '/me/player/play');
+      } else if (action === 'next') await api('POST', '/me/player/next');
+      else if (action === 'prev') await api('POST', '/me/player/previous');
+      else if (action === 'back10') await seek(Math.max(0, est() - 10000));
+    } catch (e) {
+      if (e.status === 404) toast('Abra o Spotify em algum aparelho e dê play primeiro.', 4000);
+      else toast(friendlyError(e), 4000);
+    }
+    setTimeout(poll, 400);
+  }
+
+  async function seek(ms) {
+    ms = Math.max(0, Math.round(ms));
+    S.progress = ms;
+    S.progressAt = performance.now();
+    if (S.demo) return;
+    try { await api('PUT', '/me/player/seek?position_ms=' + ms); }
+    catch (e) { toast(friendlyError(e), 4000); }
+    setTimeout(poll, 400);
+  }
+
+  /* ---------- desenho da cifra ---------- */
+  let charRatio = 0.6;
+  function measureCharRatio() {
+    const s = document.createElement('span');
+    s.className = 'measure';
+    s.textContent = 'M'.repeat(50);
+    el.sheet.appendChild(s);
+    const w = s.getBoundingClientRect().width;
+    s.remove();
+    if (w > 0) charRatio = w / 50 / 100;
+  }
+
+  function render() {
+    renderHeader();
+    renderSheet();
+    updateChrome();
+  }
+
+  function renderHeader() {
+    const song = currentSong();
+    if (S.viewingId && song) {
+      el.title.textContent = song.title;
+      el.artist.textContent = song.artist || '—';
+    } else if (S.track) {
+      el.title.textContent = S.track.title;
+      el.artist.textContent = S.track.artist;
+    } else {
+      el.title.textContent = 'Cifra Sync';
+      el.artist.textContent = token || S.demo ? 'Aguardando música no Spotify' : 'Cifras que rolam junto com o Spotify';
+    }
+    const art = !S.viewingId && S.track && S.track.art;
+    if (art) { if (el.art.getAttribute('src') !== art) el.art.src = art; el.art.hidden = false; el.artPh.hidden = true; }
+    else { el.art.hidden = true; el.artPh.hidden = false; }
+  }
+
+  function renderSheet() {
+    const song = currentSong();
+    if (!song) {
+      S.lines = []; S.types = []; S.els = []; S.units = null; S.pts = null; S.timeline = null; S.keyName = null;
+      el.sheet.replaceChildren();
+      el.sheet.hidden = true;
+      renderEmpty();
+      return;
+    }
+    el.empty.hidden = true;
+    el.sheet.hidden = false;
+    const tr = C.transposeSheet(song.sheet, song.transpose || 0);
+    S.keyName = tr.key;
+    S.lines = tr.text.split('\n');
+    S.types = S.lines.map((l) => C.classifyLine(l));
+    S.units = C.computeUnits(S.types);
+    const frag = document.createDocumentFragment();
+    S.lines.forEach((ln, i) => {
+      const d = document.createElement('div');
+      d.className = 'ln t-' + S.types[i];
+      d.dataset.i = i;
+      d.innerHTML = C.lineToHtml(ln, S.types[i]);
+      frag.appendChild(d);
+    });
+    el.sheet.replaceChildren(frag);
+    S.els = [...el.sheet.children];
+    S.curUnit = -1;
+    markAnchors();
+    applyFont();
+    rebuildTimeline();
+  }
+
+  function renderEmpty() {
+    let html;
+    if (!S.demo && !token) {
+      html = `<h2>Conecte o Spotify</h2>
+        <p>O Cifra Sync vê a música que está tocando e rola a cifra junto com ela.</p>
+        ${S.connMsg ? `<p class="warn">${esc(S.connMsg)}</p>` : ''}
+        ${store.settings.clientId ? '' : '<p>Antes, cole o <strong>Client ID</strong> do seu app do Spotify em Configurar.</p>'}
+        <div class="btns">
+          <button class="btn primary" data-a="connect">Conectar ao Spotify</button>
+          <button class="btn" data-a="settings">Configurar</button>
+          <button class="btn" data-a="demo">Ver demonstração</button>
+        </div>`;
+    } else if (!S.track) {
+      html = `<h2>Nada tocando</h2>
+        <p>Dê play numa música no Spotify, neste aparelho ou em qualquer outro. Ela aparece aqui sozinha.</p>
+        ${S.connMsg ? `<p class="warn">${esc(S.connMsg)}</p>` : ''}
+        <div class="btns"><button class="btn" data-a="library">Abrir biblioteca</button></div>`;
+    } else {
+      html = `<h2>Sem cifra para esta música</h2>
+        <p><strong>${esc(S.track.title)}</strong><br>${esc(S.track.artist)}</p>
+        <ol class="steps"><li>Abra no Cifra Club e copie a cifra.</li><li>Volte aqui e toque em “Colar cifra copiada”.</li></ol>
+        <div class="btns">
+          <button class="btn primary" data-a="cc">Abrir no Cifra Club</button>
+          <button class="btn primary" data-a="quickpaste">Colar cifra copiada</button>
+          <button class="btn" data-a="google">Não achou? Buscar no Google</button>
+          <button class="btn" data-a="manual">Colar ou digitar no editor</button>
+          <button class="btn" data-a="library">Usar uma cifra da biblioteca</button>
+        </div>`;
+    }
+    el.empty.innerHTML = html;
+    el.empty.hidden = false;
+  }
+
+  function markAnchors() {
+    const song = currentSong();
+    S.els.forEach((e) => e.removeAttribute('data-t'));
+    if (!song) return;
+    for (const a of song.anchors || []) if (S.els[a.line]) S.els[a.line].dataset.t = C.fmtTime(a.t);
+  }
+
+  function applyFont() {
+    if (!S.els.length) return;
+    const sc = el.scroller;
+    const ratio = sc.scrollHeight > 0 ? sc.scrollTop / sc.scrollHeight : 0;
+    const avail = sc.clientWidth - 36;
+    const lens = S.lines.filter((l, i) => S.types[i] !== 'tab').map((l) => l.replace(/\s+$/, '').length).sort((a, b) => a - b);
+    const maxLen = lens.length ? lens[Math.floor((lens.length - 1) * 0.97)] : 40;
+    let size = 17;
+    if (store.settings.fit) size = Math.max(11, Math.min(24, avail / (Math.max(maxLen, 26) * charRatio)));
+    size *= store.settings.fontScale;
+    el.sheet.style.fontSize = size.toFixed(2) + 'px';
+    measure();
+    if (!syncing()) { sc.scrollTop = ratio * sc.scrollHeight; S.scrollF = sc.scrollTop; }
+  }
+
+  // Pontos (posição W → altura em pixels) para converter tempo em rolagem.
+  function measure() {
+    const u = S.units;
+    if (!u || !S.els.length) { S.pts = null; return; }
+    const xs = [], ys = [];
+    for (let i = 0; i < S.els.length; i++) {
+      if (u.w[i] > 0) {
+        const start = i > 0 && u.w[i - 1] === 0 && S.types[i - 1] === 'chords' ? S.els[i - 1] : S.els[i];
+        xs.push(u.cum[i]);
+        ys.push(start.offsetTop);
+      }
+    }
+    const last = S.els[S.els.length - 1];
+    xs.push(u.total);
+    ys.push(last.offsetTop + last.offsetHeight);
+    S.pts = { xs, ys };
+  }
+
+  function rebuildTimeline() {
+    const song = currentSong();
+    S.timeline = S.units && S.track && song ? C.buildTimeline(song.anchors, S.units.cum, S.units.total, S.track.duration) : null;
+  }
+
+  function highlight(w) {
+    const i = C.unitAt(w, S.units);
+    if (i === S.curUnit) return;
+    $$('.ln.cur', el.sheet).forEach((e) => e.classList.remove('cur'));
+    S.curUnit = i;
+    if (i < 0 || !S.els[i]) return;
+    S.els[i].classList.add('cur');
+    if (i > 0 && S.units.w[i - 1] === 0) S.els[i - 1].classList.add('cur');
+  }
+
+  /* ---------- laço de rolagem (60 vezes por segundo) ---------- */
+  let lastNow = performance.now(), lastSec = -1;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - lastNow) / 1000);
+    lastNow = now;
+    if (S.demo && S.isPlaying && S.track && est() >= S.track.duration) { S.progress = 0; S.progressAt = now; }
+
+    const d = S.track ? S.track.duration : 0;
+    const p = est();
+    el.fill.style.transform = `scaleX(${d ? Math.min(1, p / d) : 0})`;
+    const sec = Math.floor(p / 1000);
+    if (sec !== lastSec) { lastSec = sec; el.time.textContent = C.fmtTime(p); }
+
+    const sc = el.scroller;
+    if (Math.abs(sc.scrollTop - S.scrollF) > 3) S.scrollF = sc.scrollTop; // a pessoa rolou
+    const holding = now < S.holdUntil;
+    const maxScroll = Math.max(0, sc.scrollHeight - sc.clientHeight);
+
+    if (store.settings.scrollMode === 'fixed') {
+      setResume(false);
+      if (S.fixedRunning && !holding && S.els.length) {
+        S.scrollF = Math.min(S.scrollF + store.settings.speed * dt, maxScroll);
+        sc.scrollTop = S.scrollF;
+      }
+      return;
+    }
+    if (!syncing() || !S.timeline || !S.pts) { setResume(false); return; }
+    const w = C.positionAt(p, S.timeline);
+    highlight(w);
+    setResume(holding);
+    if (holding) return;
+    const y = C.interp(w, S.pts.xs, S.pts.ys);
+    const target = Math.max(0, Math.min(y - sc.clientHeight * 0.3, maxScroll));
+    const diff = target - S.scrollF;
+    if (Math.abs(diff) < 0.3) return;
+    if (Math.abs(diff) > sc.clientHeight * 1.2) S.scrollF = target; // pulo grande (troca de trecho)
+    else S.scrollF += diff * Math.min(1, dt * 3.5);
+    sc.scrollTop = S.scrollF;
+  }
+  function setResume(v) {
+    if (v === S.resumeShown) return;
+    S.resumeShown = v;
+    el.resume.hidden = !v;
+  }
+  function hold(ms = 3500) { S.holdUntil = performance.now() + ms; }
+
+  /* ---------- marcações de tempo ---------- */
+  function addAnchor(i) {
+    const song = currentSong();
+    if (!syncing() || !song) { toast('Dê play nesta música no Spotify para marcar.'); return; }
+    const t = Math.round(est());
+    // remove marcações que ficariam fora de ordem com a nova
+    song.anchors = (song.anchors || []).filter((a) => !((a.line >= i && a.t <= t) || (a.line <= i && a.t >= t)));
+    const a = { line: i, t };
+    song.anchors.push(a);
+    song.anchors.sort((x, y) => x.t - y.t);
+    S.undo.push(a);
+    song.updatedAt = Date.now();
+    save();
+    rebuildTimeline();
+    markAnchors();
+    const e = S.els[i];
+    if (e) { e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); }
+  }
+  function undoAnchor() {
+    const song = currentSong();
+    const a = S.undo.pop();
+    if (!song || !a) { toast('Nada para desfazer.'); return; }
+    song.anchors = song.anchors.filter((x) => !(x.line === a.line && x.t === a.t));
+    save();
+    rebuildTimeline();
+    markAnchors();
+  }
+  function jumpToLine(i) {
+    if (!syncing() || !S.timeline || !S.units) return;
+    const t = C.timeAt(S.units.cum[i], S.timeline);
+    if (t == null) return;
+    const target = Math.max(0, t - 1500);
+    S.holdUntil = 0;
+    seek(target);
+    toast('Voltando para ' + C.fmtTime(target));
+  }
+
+  /* ---------- barra de controles ---------- */
+  function updateChrome() {
+    const song = currentSong();
+    const mode = store.settings.scrollMode;
+    el.play.classList.toggle('playing', S.isPlaying);
+    el.dur.textContent = S.track ? C.fmtTime(S.track.duration) : '0:00';
+    const canPlay = S.demo || !!token;
+    $$('#dock .transport button').forEach((b) => { b.disabled = !canPlay; });
+
+    if (song) {
+      const tp = song.transpose || 0;
+      el.key.textContent = S.keyName ? S.keyName + (tp ? ` (${sign(tp)})` : '') : tp ? sign(tp) : 'Tom';
+    } else el.key.textContent = 'Tom';
+    $('#key-down').disabled = $('#key-up').disabled = !song;
+    $('#font-down').disabled = $('#font-up').disabled = !song;
+
+    el.btnRec.hidden = mode !== 'spotify';
+    el.btnRec.disabled = !syncing();
+    el.btnRec.classList.toggle('on', S.recording);
+    el.btnRec.textContent = S.recording ? '● Gravando' : '● Marcar';
+    el.recBar.hidden = !S.recording;
+    document.body.classList.toggle('recording', S.recording);
+
+    el.fixedPill.hidden = !(mode === 'fixed' && song);
+    el.fixedPill.classList.toggle('running', S.fixedRunning);
+    el.fixedSpeed.textContent = store.settings.speed;
+
+    if (S.viewingId && song) {
+      el.banner.className = '';
+      el.banner.innerHTML = `<span>Biblioteca: ${esc(song.title)}</span><button class="pill" data-a="back">${S.track ? 'Voltar à música atual' : 'Fechar'}</button>`;
+      el.banner.hidden = false;
+    } else if (S.connMsg && S.track) {
+      el.banner.className = 'warn';
+      el.banner.innerHTML = `<span>${esc(S.connMsg)}</span>`;
+      el.banner.hidden = false;
+    } else el.banner.hidden = true;
+  }
+
+  /* ---------- tela ligada enquanto toca ---------- */
+  let wakeLock = null;
+  async function updateWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    const want = document.visibilityState === 'visible' && (S.isPlaying || S.fixedRunning);
+    try {
+      if (want && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch { wakeLock = null; }
+  }
+
+  /* ---------- editor ---------- */
+  function show(sel) { $(sel).hidden = false; }
+  function hide(sel) { $(sel).hidden = true; }
+
+  function openEditor(id, opts = {}) {
+    const song = id ? store.songs[id] : null;
+    const t = S.track;
+    const link = !song && !opts.noLink && t && !S.viewingId ? t.id : null;
+    S.editing = { id: song ? song.id : null, linkTrackId: link };
+    $('#ed-heading').textContent = song ? 'Editar cifra' : 'Nova cifra';
+    $('#ed-title').value = song ? song.title : link ? C.baseTitle(t.title) : '';
+    $('#ed-artist').value = song ? song.artist : link ? t.artist.split(',')[0].trim() : '';
+    $('#ed-text').value = song ? song.sheet : opts.text || '';
+    $('#ed-delete').hidden = !song;
+    $('#ed-link').textContent = link ? `Vai abrir sozinha quando tocar “${t.title}”` : song && song.trackIds.length ? 'Vinculada a música(s) do Spotify' : '';
+    show('#ov-editor');
+  }
+
+  function saveEditor() {
+    const text = C.cleanPasted($('#ed-text').value);
+    if (!text.trim()) { toast('A cifra está vazia.'); return; }
+    const title = $('#ed-title').value.trim() || 'Sem título';
+    const artist = $('#ed-artist').value.trim();
+    let song = S.editing && S.editing.id ? store.songs[S.editing.id] : null;
+    if (song) {
+      const changedLines = song.sheet.split('\n').length !== text.split('\n').length;
+      Object.assign(song, { sheet: text, title, artist, key: C.normKey(artist, title), updatedAt: Date.now() });
+      if (changedLines && song.anchors && song.anchors.length) toast('As linhas mudaram: confira as marcações de tempo.', 4000);
+    } else {
+      song = newSong(title, artist, text, S.editing && S.editing.linkTrackId);
+    }
+    save();
+    hide('#ov-editor');
+    resolveTrackSong();
+    render();
+  }
+
+  function deleteSong() {
+    const id = S.editing && S.editing.id;
+    if (!id || !store.songs[id]) return;
+    if (!confirm('Excluir esta cifra?')) return;
+    delete store.songs[id];
+    if (S.viewingId === id) S.viewingId = null;
+    save();
+    hide('#ov-editor');
+    resolveTrackSong();
+    render();
+  }
+
+  async function readClipboard() {
+    try { return await navigator.clipboard.readText(); } catch { return ''; }
+  }
+
+  async function quickPaste() {
+    if (!S.track) return;
+    const txt = C.cleanPasted(await readClipboard());
+    const hasChords = txt.split('\n').some((l) => C.classifyLine(l) === 'chords');
+    if (!hasChords || txt.split('\n').filter((l) => l.trim()).length < 3) {
+      openEditor(null, { text: txt });
+      toast(txt ? 'Confira o texto e toque em Salvar.' : 'Não achei texto copiado. Cole no campo abaixo.', 4000);
+      return;
+    }
+    newSong(C.baseTitle(S.track.title), S.track.artist.split(',')[0].trim(), txt, S.track.id);
+    save();
+    resolveTrackSong();
+    render();
+    toast('Cifra salva. Toque no lápis para revisar.');
+  }
+
+  /* ---------- biblioteca ---------- */
+  function openLib() { $('#lib-search').value = ''; renderLib(); show('#ov-lib'); }
+  function renderLib() {
+    const q = C.fold($('#lib-search').value).trim();
+    const songs = Object.values(store.songs)
+      .filter((s) => !q || C.fold(s.title + ' ' + s.artist).includes(q))
+      .sort((a, b) => (a.artist || '').localeCompare(b.artist || '', 'pt') || a.title.localeCompare(b.title, 'pt'));
+    const list = $('#lib-list');
+    if (!songs.length) {
+      list.innerHTML = `<div class="item sub">${q ? 'Nada encontrado.' : 'Nenhuma cifra salva ainda.'}</div>`;
+      return;
+    }
+    list.innerHTML = songs.map((s) => {
+      const tags = [s.anchors && s.anchors.length ? '⏱ sincronizada' : '', s.transpose ? 'tom ' + sign(s.transpose) : ''].filter(Boolean).join(' · ');
+      return `<button class="item" data-id="${esc(s.id)}"><span><span class="li-t">${esc(s.title)}</span><br><span class="sub">${esc(s.artist || '—')}</span></span><span class="sub">${tags}</span></button>`;
+    }).join('');
+  }
+  function pickSong(id) {
+    const s = store.songs[id];
+    if (!s) return;
+    hide('#ov-lib');
+    if (S.track && s.trackIds.includes(S.track.id)) S.viewingId = null;
+    else if (S.track && !S.trackSong && !S.demo && confirm(`Usar esta cifra sempre que tocar “${S.track.title}”?`)) {
+      s.trackIds.push(S.track.id);
+      save();
+      resolveTrackSong();
+      S.viewingId = null;
+    } else S.viewingId = id;
+    S.recording = false;
+    S.scrollF = 0;
+    el.scroller.scrollTop = 0;
+    render();
+  }
+
+  /* ---------- backup ---------- */
+  async function exportBackup() {
+    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: store.songs }, null, 2);
+    const name = `cifra-sync-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const file = new File([json], name, { type: 'application/json' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup Cifra Sync' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  function sanitizeSong(s) {
+    if (!s || typeof s.sheet !== 'string') return null;
+    const id = String(s.id || '').replace(/[^\w:-]/g, '').slice(0, 64) || newId();
+    return {
+      id, title: String(s.title || 'Sem título').slice(0, 200), artist: String(s.artist || '').slice(0, 200),
+      sheet: s.sheet.slice(0, 200000), transpose: normTranspose(s.transpose | 0),
+      anchors: Array.isArray(s.anchors) ? s.anchors.filter((a) => a && Number.isInteger(a.line) && Number.isFinite(a.t)).map((a) => ({ line: a.line, t: Math.round(a.t) })).slice(0, 500) : [],
+      trackIds: Array.isArray(s.trackIds) ? s.trackIds.filter((x) => typeof x === 'string').map((x) => x.slice(0, 120)).slice(0, 20) : [],
+      key: C.normKey(s.artist, s.title), createdAt: +s.createdAt || Date.now(), updatedAt: +s.updatedAt || Date.now(),
+    };
+  }
+  async function importBackup(file) {
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || !data.songs || typeof data.songs !== 'object') throw new Error('formato');
+      let n = 0;
+      for (const raw of Object.values(data.songs)) {
+        const s = sanitizeSong(raw);
+        if (!s) continue;
+        const cur = store.songs[s.id];
+        if (!cur || s.updatedAt > (cur.updatedAt || 0)) { store.songs[s.id] = s; n++; }
+      }
+      save();
+      resolveTrackSong();
+      render();
+      toast(`${n} cifra(s) importada(s).`);
+    } catch { toast('Arquivo de backup inválido.'); }
+  }
+
+  /* ---------- demonstração ---------- */
+  function ensureDemoSong() {
+    let s = Object.values(store.songs).find((x) => x.trackIds.includes(DEMO_TRACK.id));
+    if (s) return;
+    s = newSong(DEMO_TRACK.title, DEMO_TRACK.artist, DEMO_SHEET, DEMO_TRACK.id);
+    const lines = DEMO_SHEET.split('\n');
+    const at = (label, nth = 1) => { let c = 0; return lines.findIndex((l) => l.startsWith(label) && ++c === nth); };
+    s.anchors = [
+      [at('[Riff]'), 6000], [at('[Primeira Parte]'), 13000], [at('[Refrão]'), 35000], [at('[Solo]'), 53000],
+      [at('[Segunda Parte]'), 60000], [at('[Refrão]', 2), 80000], [at('[Final]'), 95000],
+    ].filter(([line]) => line >= 0).map(([line, t]) => ({ line, t }));
+    save();
+  }
+  function startDemo() {
+    clearTimeout(pollTimer);
+    store.settings.demo = true;
+    save();
+    ensureDemoSong();
+    S.demo = true;
+    S.connMsg = '';
+    S.viewingId = null;
+    S.isPlaying = false;
+    S.progress = 0;
+    S.progressAt = performance.now();
+    setConn('demo');
+    S.track = null;
+    setTrack({ ...DEMO_TRACK });
+    updateChrome();
+  }
+  function stopDemo(resume = true) {
+    store.settings.demo = false;
+    save();
+    S.demo = false;
+    S.isPlaying = false;
+    setTrack(null);
+    setConn(token ? 'on' : 'off');
+    render();
+    if (resume) poll();
+  }
+
+  /* ---------- menu ---------- */
+  function openMenu() { syncMenu(); show('#ov-menu'); }
+  function syncMenu() {
+    const st = store.settings;
+    $$('.opt').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.scrollMode));
+    $('#m-speed').value = st.speed;
+    $('#m-speed-val').textContent = st.speed + ' px/s';
+    $('#m-speed-row').hidden = st.scrollMode !== 'fixed';
+    $('#m-clear-anchors').hidden = !(currentSong() && (currentSong().anchors || []).length);
+    $('#m-fit').checked = !!st.fit;
+    $('#m-light').checked = st.theme === 'light';
+    $('#m-client').value = st.clientId;
+    $('#m-redirect').textContent = REDIRECT_URI;
+    $('#m-connect-label').textContent = token ? 'Desconectar do Spotify' : 'Conectar ao Spotify';
+    $('#m-demo').checked = S.demo;
+    $('#m-lib-count').textContent = Object.keys(store.songs).length + ' salvas';
+  }
+  function applyTheme() {
+    document.documentElement.dataset.theme = store.settings.theme;
+    $('meta[name="theme-color"]').setAttribute('content', store.settings.theme === 'light' ? '#f8f5ef' : '#0e0d0b');
+  }
+
+  /* ---------- eventos ---------- */
+  function bind() {
+    $('#btn-menu').addEventListener('click', openMenu);
+    $('#btn-edit').addEventListener('click', () => {
+      const song = currentSong();
+      if (song) openEditor(song.id);
+      else if (S.track) openEditor(null);
+      else openEditor(null, { noLink: true });
+    });
+
+    $$('#dock [data-c]').forEach((b) => b.addEventListener('click', () => ctl(b.dataset.c)));
+    el.progress.addEventListener('click', (e) => {
+      if (!S.track || !S.track.duration) return;
+      const r = el.progress.getBoundingClientRect();
+      S.holdUntil = 0;
+      seek(((e.clientX - r.left) / r.width) * S.track.duration);
+    });
+
+    const transpose = (d) => {
+      const song = currentSong();
+      if (!song) return;
+      song.transpose = normTranspose((song.transpose || 0) + d);
+      song.updatedAt = Date.now();
+      save();
+      renderSheet();
+      updateChrome();
+    };
+    $('#key-down').addEventListener('click', () => transpose(-1));
+    $('#key-up').addEventListener('click', () => transpose(1));
+    const font = (f) => {
+      store.settings.fontScale = Math.max(0.6, Math.min(2.2, +(store.settings.fontScale * f).toFixed(3)));
+      save();
+      applyFont();
+    };
+    $('#font-down').addEventListener('click', () => font(1 / 1.1));
+    $('#font-up').addEventListener('click', () => font(1.1));
+
+    el.btnRec.addEventListener('click', () => {
+      if (!syncing()) { toast('Dê play nesta música no Spotify para marcar.'); return; }
+      S.recording = !S.recording;
+      S.undo = [];
+      if (S.recording) { markAnchors(); if (!S.isPlaying) toast('Dê play e toque em cada linha quando ela começar.', 4000); }
+      updateChrome();
+    });
+    $('#rec-done').addEventListener('click', () => {
+      S.recording = false;
+      const n = (currentSong() && currentSong().anchors.length) || 0;
+      toast(n ? `${n} marcação(ões) salva(s).` : 'Nenhuma marcação.');
+      updateChrome();
+    });
+    $('#rec-undo').addEventListener('click', undoAnchor);
+
+    el.sheet.addEventListener('click', (e) => {
+      const ln = e.target.closest('.ln');
+      if (!ln) return;
+      const i = +ln.dataset.i;
+      if (S.recording) { addAnchor(i); return; }
+      const now = performance.now();
+      if (S.lastTap.i === i && now - S.lastTap.at < 400) { S.lastTap = { i: -1, at: 0 }; jumpToLine(i); }
+      else S.lastTap = { i, at: now };
+    });
+
+    const sc = el.scroller;
+    sc.addEventListener('touchmove', () => hold(), { passive: true });
+    sc.addEventListener('touchend', () => { if (S.holdUntil > performance.now()) hold(2500); }, { passive: true });
+    sc.addEventListener('wheel', () => hold(), { passive: true });
+    el.resume.addEventListener('click', () => { S.holdUntil = 0; });
+
+    el.fixedToggle.addEventListener('click', () => {
+      S.fixedRunning = !S.fixedRunning;
+      S.holdUntil = 0;
+      updateChrome();
+      updateWakeLock();
+    });
+    $$('#fixed-pill [data-f]').forEach((b) => b.addEventListener('click', () => {
+      const st = store.settings;
+      st.speed = Math.max(5, Math.min(150, st.speed + (b.dataset.f === 'faster' ? 5 : -5)));
+      save();
+      updateChrome();
+    }));
+
+    el.empty.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]');
+      if (!a) return;
+      const t = S.track;
+      ({
+        connect: login,
+        settings: () => { openMenu(); $('#m-client').focus(); },
+        demo: startDemo,
+        library: openLib,
+        cc: () => t && openUrl(C.cifraClubUrl(t.artist, t.title)),
+        google: () => t && openUrl(C.googleUrl(t.artist, t.title)),
+        quickpaste: quickPaste,
+        manual: () => openEditor(null),
+      }[a.dataset.a] || (() => {}))();
+    });
+    el.banner.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-a="back"]')) return;
+      S.viewingId = null;
+      S.scrollF = 0;
+      el.scroller.scrollTop = 0;
+      render();
+    });
+
+    // editor
+    $('#ed-cancel').addEventListener('click', () => hide('#ov-editor'));
+    $('#ed-save').addEventListener('click', saveEditor);
+    $('#ed-delete').addEventListener('click', deleteSong);
+    $('#ed-paste').addEventListener('click', async () => {
+      const txt = await readClipboard();
+      if (!txt) { toast('Não consegui ler a área de transferência. Toque e segure no campo para colar.', 4000); return; }
+      $('#ed-text').value = C.cleanPasted(txt);
+    });
+    $('#ed-cc').addEventListener('click', () => openUrl(C.cifraClubUrl($('#ed-artist').value, $('#ed-title').value)));
+    $('#ed-google').addEventListener('click', () => openUrl(C.googleUrl($('#ed-artist').value, $('#ed-title').value)));
+
+    // biblioteca
+    $('#lib-close').addEventListener('click', () => hide('#ov-lib'));
+    $('#lib-new').addEventListener('click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
+    $('#lib-search').addEventListener('input', renderLib);
+    $('#lib-list').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
+
+    // menu
+    $('#ov-menu').addEventListener('click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
+    $('#m-close').addEventListener('click', () => hide('#ov-menu'));
+    $('#m-lib').addEventListener('click', () => { hide('#ov-menu'); openLib(); });
+    $$('.opt').forEach((b) => b.addEventListener('click', () => {
+      store.settings.scrollMode = b.dataset.mode;
+      S.fixedRunning = false;
+      S.recording = false;
+      save();
+      syncMenu();
+      updateChrome();
+      updateWakeLock();
+    }));
+    $('#m-speed').addEventListener('input', (e) => { store.settings.speed = +e.target.value; save(); syncMenu(); updateChrome(); });
+    $('#m-clear-anchors').addEventListener('click', () => {
+      const song = currentSong();
+      if (!song || !confirm('Apagar as marcações de tempo desta música?')) return;
+      song.anchors = [];
+      save();
+      rebuildTimeline();
+      markAnchors();
+      syncMenu();
+      toast('Marcações apagadas.');
+    });
+    $('#m-fit').addEventListener('change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
+    $('#m-light').addEventListener('change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
+    $('#m-client').addEventListener('change', (e) => {
+      const v = e.target.value.trim();
+      if (v === store.settings.clientId) return;
+      store.settings.clientId = v;
+      if (token) clearToken();
+      save();
+      syncMenu();
+      render();
+      toast(v ? 'Client ID salvo.' : 'Client ID removido.');
+    });
+    $('#m-copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(REDIRECT_URI); toast('Endereço copiado.'); } catch { toast('Copie manualmente: ' + REDIRECT_URI, 5000); }
+    });
+    $('#m-connect').addEventListener('click', () => {
+      if (token) {
+        clearToken();
+        clearTimeout(pollTimer);
+        S.isPlaying = false;
+        setTrack(null);
+        setConn('off');
+        hide('#ov-menu');
+        render();
+        toast('Desconectado do Spotify.');
+      } else {
+        store.settings.clientId = $('#m-client').value.trim();
+        save();
+        login();
+      }
+    });
+    $('#m-export').addEventListener('click', exportBackup);
+    $('#m-import').addEventListener('click', () => $('#import-file').click());
+    $('#import-file').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (f) importBackup(f);
+    });
+    $('#m-demo').addEventListener('change', (e) => {
+      hide('#ov-menu');
+      if (e.target.checked) startDemo();
+      else stopDemo();
+    });
+
+    // pedal Bluetooth / teclado
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest && e.target.closest('input, textarea')) return;
+      if ($$('.ov').some((o) => !o.hidden)) return;
+      const page = el.scroller.clientHeight * 0.6;
+      if (['ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); hold(6000); el.scroller.scrollBy({ top: page, behavior: 'smooth' }); }
+      else if (['ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); hold(6000); el.scroller.scrollBy({ top: -page, behavior: 'smooth' }); }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { if (!S.demo) poll(); }
+      else clearTimeout(pollTimer);
+      updateWakeLock();
+    });
+    window.addEventListener('resize', debounce(applyFont, 150));
+    el.art.addEventListener('error', () => { el.art.hidden = true; el.artPh.hidden = false; });
+  }
+
+  /* ---------- início ---------- */
+  async function boot() {
+    applyTheme();
+    measureCharRatio();
+    bind();
+    try { await handleRedirect(); } catch (e) { toast('Erro no login: ' + e.message, 5000); }
+    if (store.settings.demo) startDemo();
+    else { setConn(token ? 'on' : 'off'); render(); if (token) poll(); }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measureCharRatio(); applyFont(); });
+    requestAnimationFrame(frame);
+    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  boot();
+})();
+
+/* Cifra Sync — núcleo: leitura da cifra, transposição e sincronia com o tempo da música.
+   Código puro (sem DOM): roda no navegador e no Node (para testes). */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CifraCore = api;
+})(typeof self !== 'undefined' ? self : globalThis, function () {
+  'use strict';
+
+  const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const NOTE_INDEX = {
+    C: 0, 'B#': 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, Fb: 4, 'E#': 5, F: 5,
+    'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11, Cb: 11,
+  };
+  // Tons maiores que se escrevem com bemóis: F, Bb, Eb, Ab, Db
+  const FLAT_MAJOR = new Set([5, 10, 3, 8, 1]);
+
+  // Acorde no padrão brasileiro: C, Am7, G/B, F#m7(b5), Bb7M(9), D4, A7/9, C#º, E7(9-)...
+  const CHORD_RE = /^([A-G])([#b]?)((?:maj|min|dim|aug|sus|add|m|M|º|°|ø|\+|-)?(?:[0-9]+|maj|sus|add|M|º|°|ø|\+|-|#|b|\/[0-9]+|\([^()\s]*\))*)(?:\/([A-G])([#b]?))?$/;
+  // Marcas que aparecem em linhas de acorde e não são acordes: barras, (2x), N.C., %...
+  const NEUTRAL_RE = /^(?:\|{1,2}:?|:?\|{1,2}|[-–—]+|%|\/|\.{2,}|…|N\.?C\.?|\(?\d+\s*[xX]\)?|\(?[xX]\s*\d+\)?|→|>|\*+|\(|\))$/;
+  const LABEL_BRACKET = /^\[[^\]]*\]$/;
+  const LABEL_COLON = /^[A-Za-zÀ-ÿ0-9ºª.]+:$/;
+  const WEIGHT = { blank: 0.25, section: 0.5, chords: 1, lyric: 1, tab: 1 };
+
+  function tokenize(line) {
+    const out = [];
+    const re = /\[[^\]]*\]|\S+/g;
+    let m;
+    while ((m = re.exec(line))) out.push({ text: m[0], index: m.index });
+    return out;
+  }
+
+  function parseChordToken(tok) {
+    let pre = '', post = '', core = String(tok);
+    if (core.length > 1 && core[0] === '(') { pre = '('; core = core.slice(1); }
+    const open = (core.match(/\(/g) || []).length;
+    const close = (core.match(/\)/g) || []).length;
+    if (close > open && core.endsWith(')')) { post = ')'; core = core.slice(0, -1); }
+    const m = CHORD_RE.exec(core);
+    if (!m) return null;
+    return { pre, post, root: m[1] + m[2], suffix: m[3] || '', bass: m[4] ? m[4] + (m[5] || '') : '' };
+  }
+
+  function isLabel(text, first) {
+    return LABEL_BRACKET.test(text) || (first && LABEL_COLON.test(text));
+  }
+
+  function isTabLine(t) {
+    return (/^[A-Ga-g][#b]?\s*[|:]/.test(t) || /^[|\-–0-9hpbr\/\\~x()\s.]{8,}$/.test(t)) && /[-–]{3,}/.test(t);
+  }
+
+  /** Classifica a linha: 'blank' | 'tab' | 'chords' | 'section' | 'lyric' */
+  function classifyLine(line) {
+    const t = String(line).trim();
+    if (!t) return 'blank';
+    if (isTabLine(t)) return 'tab';
+    const toks = tokenize(line);
+    let chords = 0, labels = 0;
+    for (let k = 0; k < toks.length; k++) {
+      const x = toks[k].text;
+      if (isLabel(x, k === 0)) { labels++; continue; }
+      if (parseChordToken(x)) { chords++; continue; }
+      if (NEUTRAL_RE.test(x)) continue;
+      return 'lyric';
+    }
+    if (chords) return 'chords';
+    if (labels) return 'section';
+    return 'lyric';
+  }
+
+  function transposeNote(note, semis, flats) {
+    const idx = NOTE_INDEX[note];
+    if (idx === undefined) return note;
+    return (flats ? FLAT : SHARP)[(((idx + semis) % 12) + 12) % 12];
+  }
+
+  function transposeLine(line, semis, flats) {
+    let out = '';
+    for (const tk of tokenize(line)) {
+      const p = parseChordToken(tk.text);
+      const text = p
+        ? p.pre + transposeNote(p.root, semis, flats) + p.suffix + (p.bass ? '/' + transposeNote(p.bass, semis, flats) : '') + p.post
+        : tk.text;
+      let col = tk.index;
+      if (out.length && out.length >= col) col = out.length + 1; // acorde cresceu: mantém pelo menos um espaço
+      out += ' '.repeat(col - out.length) + text;
+    }
+    return out;
+  }
+
+  /** Tom provável: o primeiro acorde da cifra. */
+  function detectKey(text) {
+    for (const line of String(text).split('\n')) {
+      if (classifyLine(line) !== 'chords') continue;
+      for (const tk of tokenize(line)) {
+        const p = parseChordToken(tk.text);
+        if (p) return { root: p.root, minor: /^m(?!aj)/.test(p.suffix) };
+      }
+    }
+    return null;
+  }
+  const keyName = (k) => (k ? k.root + (k.minor ? 'm' : '') : null);
+
+  function transposeSheet(text, semis) {
+    const key = detectKey(text);
+    const s = (((semis | 0) % 12) + 12) % 12;
+    if (!s) return { text, key: keyName(key) };
+    let flats = false;
+    if (key && NOTE_INDEX[key.root] !== undefined) {
+      const ni = (NOTE_INDEX[key.root] + s) % 12;
+      flats = FLAT_MAJOR.has(key.minor ? (ni + 3) % 12 : ni);
+    }
+    const lines = String(text).split('\n').map((l) => (classifyLine(l) === 'chords' ? transposeLine(l, s, flats) : l));
+    const newKey = key ? { root: transposeNote(key.root, s, flats), minor: key.minor } : null;
+    return { text: lines.join('\n'), key: keyName(newKey) };
+  }
+
+  /* ---------- sincronia ----------
+     Cada linha tem um "peso" de tempo. Acorde logo acima da letra pesa 0 (anda junto com ela),
+     linha em branco pesa pouco. A posição na música vira uma posição W nesse eixo de pesos. */
+  function computeUnits(types) {
+    const n = types.length, w = new Array(n), cum = new Array(n + 1);
+    for (let i = 0; i < n; i++) {
+      let x = WEIGHT[types[i]] !== undefined ? WEIGHT[types[i]] : 1;
+      if (types[i] === 'chords' && types[i + 1] === 'lyric') x = 0;
+      w[i] = x;
+    }
+    cum[0] = 0;
+    for (let i = 0; i < n; i++) cum[i + 1] = cum[i] + w[i];
+    return { w, cum, total: cum[n] };
+  }
+
+  /** Converte marcações {line, t(ms)} numa linha do tempo [{t, w}] crescente. */
+  function buildTimeline(anchors, cum, total, duration) {
+    const maxLine = cum.length - 2;
+    const pts = (anchors || [])
+      .filter((a) => a && Number.isFinite(a.t) && Number.isInteger(a.line) && a.line >= 0 && a.line <= maxLine)
+      .map((a) => ({ t: a.t, w: cum[a.line] }))
+      .sort((a, b) => a.t - b.t);
+    const mono = [];
+    for (const p of pts) {
+      const last = mono[mono.length - 1];
+      if (!last || (p.w >= last.w && p.t > last.t)) mono.push(p);
+    }
+    const res = [];
+    if (!mono.length || mono[0].t > 0) res.push({ t: 0, w: 0 });
+    res.push(...mono);
+    const last = res[res.length - 1];
+    if (duration > last.t) res.push({ t: duration, w: Math.max(total, last.w) });
+    return res;
+  }
+
+  function positionAt(t, tl) {
+    if (!tl || !tl.length) return 0;
+    if (t <= tl[0].t) return tl[0].w;
+    for (let i = 1; i < tl.length; i++) {
+      if (t < tl[i].t) {
+        const a = tl[i - 1], b = tl[i], span = b.t - a.t;
+        return span > 0 ? a.w + ((b.w - a.w) * (t - a.t)) / span : b.w;
+      }
+    }
+    return tl[tl.length - 1].w;
+  }
+
+  /** Inverso: em que momento da música a posição W é alcançada (para pular até uma linha). */
+  function timeAt(w, tl) {
+    if (!tl || !tl.length) return null;
+    if (w <= tl[0].w) return tl[0].t;
+    for (let i = 1; i < tl.length; i++) {
+      const a = tl[i - 1], b = tl[i];
+      if (w <= b.w && b.w > a.w) return a.t + ((w - a.w) / (b.w - a.w)) * (b.t - a.t);
+    }
+    return tl[tl.length - 1].t;
+  }
+
+  function interp(x, xs, ys) {
+    const n = xs.length;
+    if (!n) return 0;
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[n - 1]) return ys[n - 1];
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] <= x) lo = mid; else hi = mid; }
+    const span = xs[hi] - xs[lo];
+    return span > 0 ? ys[lo] + ((ys[hi] - ys[lo]) * (x - xs[lo])) / span : ys[hi];
+  }
+
+  /** Índice da linha "atual" para a posição W (ignora linhas de peso 0). */
+  function unitAt(w, units) {
+    if (!units) return -1;
+    let found = -1;
+    for (let i = 0; i < units.w.length; i++) {
+      if (units.w[i] > 0) { if (units.cum[i] <= w + 1e-9) found = i; else break; }
+    }
+    return found;
+  }
+
+  /* ---------- texto ---------- */
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function lineToHtml(line, type) {
+    if (type === 'blank') return '';
+    if (type === 'section') return '<i class="lb">' + esc(line) + '</i>';
+    if (type !== 'chords') return esc(line);
+    let out = '', pos = 0, k = 0;
+    for (const tk of tokenize(line)) {
+      out += esc(line.slice(pos, tk.index));
+      if (isLabel(tk.text, k === 0)) out += '<i class="lb">' + esc(tk.text) + '</i>';
+      else if (parseChordToken(tk.text)) out += '<b class="c">' + esc(tk.text) + '</b>';
+      else out += esc(tk.text);
+      pos = tk.index + tk.text.length;
+      k++;
+    }
+    return out + esc(line.slice(pos));
+  }
+
+  function expandTabs(l) {
+    let out = '';
+    for (const ch of l) out += ch === '\t' ? ' '.repeat(4 - (out.length % 4)) : ch;
+    return out;
+  }
+
+  function cleanPasted(text) {
+    let s = String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[   ]/g, ' ')
+      .replace(/[​-‍﻿]/g, '');
+    s = s.split('\n').map((l) => expandTabs(l).replace(/\s+$/, '')).join('\n');
+    return s.replace(/\n{4,}/g, '\n\n\n').replace(/^\n+|\n+$/g, '');
+  }
+
+  const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  function baseTitle(title) {
+    return String(title || '')
+      .replace(/\s+-\s+.*$/, '') // "Música - Remastered 2011" / "- Ao Vivo"
+      .replace(/\s*[([][^)\]]*[)\]]\s*/g, ' ') // "(Ao Vivo)", "[Live]", "(feat. X)"
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  const firstArtist = (a) => String(a || '').split(',')[0].trim();
+
+  function normKey(artist, title) {
+    const a = fold(firstArtist(artist)).replace(/[^a-z0-9]+/g, ' ').trim();
+    const t = fold(baseTitle(title)).replace(/[^a-z0-9]+/g, ' ').trim();
+    return a + '|' + t;
+  }
+
+  const slug = (s) => fold(s).replace(/&/g, ' e ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+  function cifraClubUrl(artist, title) {
+    const a = slug(firstArtist(artist)), t = slug(baseTitle(title));
+    return a && t ? `https://www.cifraclub.com.br/${a}/${t}/` : 'https://www.cifraclub.com.br/';
+  }
+  function googleUrl(artist, title) {
+    return 'https://www.google.com/search?q=' + encodeURIComponent(`cifra club ${firstArtist(artist)} ${baseTitle(title)}`.trim());
+  }
+
+  function fmtTime(ms) {
+    const s = Math.max(0, Math.floor((ms || 0) / 1000));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  return {
+    tokenize, parseChordToken, classifyLine, isTabLine, transposeNote, transposeLine, transposeSheet,
+    detectKey, computeUnits, buildTimeline, positionAt, timeAt, interp, unitAt,
+    lineToHtml, cleanPasted, normKey, baseTitle, fold, slug, cifraClubUrl, googleUrl, fmtTime, esc,
+  };
+});
+
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0e0d0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cifra Sync">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<title>Cifra Sync</title>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <img id="art" alt="" hidden>
+    <div id="art-ph" aria-hidden="true">♪</div>
+    <div class="meta">
+      <div id="title">Cifra Sync</div>
+      <div id="artist">Cifras que rolam junto com o Spotify</div>
+    </div>
+    <span id="conn" class="dot" title="Spotify"></span>
+    <button id="btn-edit" class="icon" aria-label="Editar cifra"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"/></svg></button>
+    <button id="btn-menu" class="icon" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <div class="stage">
+    <main id="scroller">
+      <div id="sheet" hidden></div>
+      <div id="empty" hidden></div>
+    </main>
+    <button id="resume" class="float" hidden>↧ Voltar a acompanhar</button>
+    <div id="fixed-pill" class="float" hidden>
+      <button data-f="slower" aria-label="Mais devagar">−</button>
+      <button id="fixed-toggle" aria-label="Iniciar ou parar a rolagem">
+        <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+      </button>
+      <span id="fixed-speed"></span>
+      <button data-f="faster" aria-label="Mais rápido">+</button>
+    </div>
+    <div id="rec-bar" class="float" hidden>
+      <span>● Toque em cada linha quando ela começar</span>
+      <button class="pill" id="rec-undo">Desfazer</button>
+      <button class="pill primary" id="rec-done">Concluir</button>
+    </div>
+  </div>
+
+  <footer id="dock">
+    <div id="progress" aria-label="Posição na música"><div class="bar"><div id="progress-fill"></div></div></div>
+    <div class="row">
+      <span id="time" class="time">0:00</span>
+      <div class="transport">
+        <button data-c="prev" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button data-c="back10" aria-label="Voltar 10 segundos"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg></button>
+        <button data-c="toggle" id="play" aria-label="Tocar ou pausar">
+          <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+        </button>
+        <button data-c="next" aria-label="Próxima"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      </div>
+      <span id="dur" class="time right">0:00</span>
+    </div>
+    <div class="row tools">
+      <div class="seg" title="Transpor tom">
+        <button id="key-down" aria-label="Baixar meio tom">−</button>
+        <span id="key">Tom</span>
+        <button id="key-up" aria-label="Subir meio tom">+</button>
+      </div>
+      <div class="seg" title="Tamanho da letra">
+        <button id="font-down" aria-label="Diminuir letra">A−</button>
+        <button id="font-up" aria-label="Aumentar letra">A+</button>
+      </div>
+      <button id="btn-rec" class="pill">● Marcar</button>
+    </div>
+  </footer>
+</div>
+
+<!-- Menu -->
+<div id="ov-menu" class="ov" hidden>
+  <div class="panel">
+    <div class="grab"></div>
+    <div class="group">
+      <button class="item" id="m-lib"><span>Biblioteca de cifras</span><span class="sub" id="m-lib-count"></span></button>
+    </div>
+
+    <h4>Rolagem</h4>
+    <div class="group">
+      <div class="item"><div class="opts">
+        <button class="opt" data-mode="spotify">Seguir o Spotify</button>
+        <button class="opt" data-mode="fixed">Velocidade fixa</button>
+      </div></div>
+      <div class="item" id="m-speed-row"><span>Velocidade</span><input type="range" id="m-speed" min="5" max="150" step="5"><span class="sub num" id="m-speed-val"></span></div>
+      <button class="item" id="m-clear-anchors"><span>Apagar marcações de tempo desta música</span></button>
+    </div>
+
+    <h4>Exibição</h4>
+    <div class="group">
+      <label class="item"><span>Ajustar a cifra à largura da tela</span><input type="checkbox" id="m-fit"></label>
+      <label class="item"><span>Tema claro</span><input type="checkbox" id="m-light"></label>
+    </div>
+
+    <h4>Spotify</h4>
+    <div class="group">
+      <div class="item col">
+        <span>Client ID do seu app no painel do Spotify</span>
+        <input type="text" id="m-client" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="cole o Client ID aqui">
+      </div>
+      <div class="item col">
+        <span>Redirect URI — cadastre exatamente este endereço no painel do Spotify</span>
+        <div class="copyrow"><code id="m-redirect"></code><button class="pill" id="m-copy">Copiar</button></div>
+      </div>
+      <button class="item" id="m-connect"><span id="m-connect-label">Conectar ao Spotify</span></button>
+    </div>
+
+    <h4>Dados</h4>
+    <div class="group">
+      <button class="item" id="m-export"><span>Exportar backup das cifras</span></button>
+      <button class="item" id="m-import"><span>Importar backup</span></button>
+      <label class="item"><span>Modo demonstração (sem Spotify)</span><input type="checkbox" id="m-demo"></label>
+    </div>
+
+    <details class="help">
+      <summary>Como usar</summary>
+      <ol>
+        <li>Dê play no Spotify (neste iPhone, no computador ou em outro aparelho). A música aparece aqui sozinha.</li>
+        <li>Sem cifra salva? Toque em <b>Abrir no Cifra Club</b>, selecione e copie a cifra, volte e toque em <b>Colar cifra copiada</b>. Ela fica salva para as próximas vezes.</li>
+        <li>A rolagem acompanha a música. Para ficar exata, toque em <b>● Marcar</b> e, com a música tocando, toque em cada linha no momento em que ela começa. Marcar o início de cada parte já basta.</li>
+        <li>Toque duas vezes numa linha para o Spotify voltar até ela. Bom para repetir um trecho.</li>
+        <li>Arrastar a cifra pausa a rolagem por alguns segundos.</li>
+        <li>Tom −/+ transpõe os acordes; A−/A+ muda o tamanho. Com o celular deitado a letra fica maior.</li>
+        <li>Pedal Bluetooth de virar página funciona (setas e espaço).</li>
+      </ol>
+    </details>
+    <button class="btn" id="m-close">Fechar</button>
+  </div>
+</div>
+
+<!-- Editor -->
+<div id="ov-editor" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="ed-cancel">Cancelar</button>
+      <strong id="ed-heading">Cifra</strong>
+      <button class="pill primary" id="ed-save">Salvar</button>
+    </div>
+    <div class="ed-fields">
+      <input type="text" id="ed-title" placeholder="Música" autocomplete="off">
+      <input type="text" id="ed-artist" placeholder="Artista" autocomplete="off">
+    </div>
+    <div class="ed-actions">
+      <button class="pill" id="ed-paste">Colar</button>
+      <button class="pill" id="ed-cc">Abrir no Cifra Club</button>
+      <button class="pill" id="ed-google">Buscar no Google</button>
+    </div>
+    <textarea id="ed-text" wrap="off" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="Cole aqui a cifra (acordes em cima, letra embaixo)…"></textarea>
+    <div class="ed-foot">
+      <button class="pill danger" id="ed-delete">Excluir</button>
+      <span class="sub" id="ed-link"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Biblioteca -->
+<div id="ov-lib" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="lib-close">Fechar</button>
+      <strong>Biblioteca</strong>
+      <button class="pill primary" id="lib-new">Nova</button>
+    </div>
+    <input type="search" id="lib-search" placeholder="Buscar música ou artista" autocomplete="off">
+    <div id="lib-list" class="group scroll"></div>
+  </div>
+</div>
+
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+
+# Cifra Sync
+
+Web app pessoal: lê a música que está tocando no seu Spotify e rola a cifra junto com ela.
+Funciona no iPhone como app de tela inicial. Sem servidor: tudo fica no seu aparelho.
+
+Leva uns 15 minutos para colocar no ar, uma única vez.
+
+---
+
+## 1. Publicar o app (GitHub Pages, gratuito)
+
+O Spotify só aceita apps em endereço HTTPS fixo. O GitHub Pages resolve isso de graça.
+
+1. Entre em github.com (crie uma conta se não tiver).
+2. Crie um repositório **público** chamado `cifra-sync` (botão **New**).
+3. Na página do repositório, clique em **Add file → Upload files** e arraste **todo o conteúdo desta pasta**
+   (index.html, app.js, core.js, styles.css, sw.js, manifest.webmanifest e a pasta icons). Clique em **Commit changes**.
+4. Vá em **Settings → Pages**. Em *Branch*, escolha `main` e `/ (root)` e clique em **Save**.
+5. Depois de 1 ou 2 minutos o app estará em:
+   `https://SEU-USUARIO.github.io/cifra-sync/`
+
+> O repositório público contém só o código. Suas cifras e seu login do Spotify **não** vão para o GitHub.
+
+## 2. Criar o app no painel do Spotify
+
+1. Acesse developer.spotify.com/dashboard e entre com a sua conta Premium.
+2. **Create app**:
+   - App name: `Cifra Sync` (qualquer nome)
+   - App description: `Uso pessoal`
+   - **Redirect URI**: o endereço do passo 1, **exatamente igual, com a barra no final**:
+     `https://SEU-USUARIO.github.io/cifra-sync/`
+   - Marque **Web API**, aceite os termos e salve.
+3. Abra o app criado → **Settings** → copie o **Client ID**.
+4. Ainda nas configurações, em **User Management**, adicione o seu nome e o e-mail da sua conta do Spotify.
+
+## 3. Instalar no iPhone
+
+A ordem importa: o app da tela inicial guarda os dados separado do Safari.
+
+1. Abra o endereço do passo 1 no **Safari**.
+2. Toque em **Compartilhar → Adicionar à Tela de Início**.
+3. Abra o **Cifra Sync pela tela inicial**.
+4. Toque em **☰ (menu)** → cole o **Client ID** → **Conectar ao Spotify** → autorize.
+
+Pronto. Dê play em qualquer música no Spotify e ela aparece no Cifra Sync.
+
+## 4. Uso no dia a dia
+
+- **Música sem cifra:** toque em *Abrir no Cifra Club*, selecione e copie a cifra, volte e toque em *Colar cifra copiada*. Fica salva para sempre.
+- **Rolagem exata:** toque em **● Marcar** e, com a música tocando, toque em cada linha quando ela começa (só o início de cada parte já basta). Depois, *Concluir*. Da próxima vez a rolagem segue essas marcações.
+- **Repetir um trecho:** toque duas vezes numa linha e o Spotify volta até ela.
+- **Pausar a rolagem:** é só arrastar a cifra; ela volta a acompanhar sozinha em alguns segundos.
+- **Tom −/+** transpõe os acordes. **A−/A+** muda o tamanho. Celular deitado = letra maior.
+- **Velocidade fixa** (menu): rolagem contínua sem depender do Spotify.
+- **Backup:** menu → *Exportar backup*. Faça de vez em quando; as cifras ficam só no aparelho.
+
+## 5. Problemas comuns
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| Spotify mostra "INVALID_CLIENT: Invalid redirect URI" | O endereço cadastrado no painel está diferente | Menu → copie o *Redirect URI* mostrado no app e cole idêntico no painel |
+| "Sua conta não está liberada no app" | Seu e-mail não está em User Management | Adicione-o no painel do Spotify |
+| "Abra o Spotify em algum aparelho" ao tocar play | Nenhum aparelho ativo | Dê play uma vez no app do Spotify; depois os botões funcionam |
+| Depois do login, ficou no Safari em vez do app | Comportamento do iOS com apps de tela inicial | Feche, abra pela tela inicial e conecte de novo. Se persistir, use direto pelo Safari |
+| Pede para conectar de novo depois de meses | O Spotify expira a autorização periodicamente | Menu → Conectar ao Spotify |
+| Cifra do Cifra Club não abriu (página não encontrada) | O endereço é montado a partir do nome da música | Use *Buscar no Google* |
+
+## 6. Testar no computador (opcional)
+
+Na pasta do app: `python3 -m http.server 8000`, abra `http://127.0.0.1:8000/` e cadastre também esse
+endereço como Redirect URI no painel. O Spotify aceita `127.0.0.1`, mas não aceita `localhost`.
+
+## Segurança e privacidade
+
+- Login pelo fluxo PKCE do Spotify: não existe senha nem "client secret" no código.
+- O token de acesso fica no armazenamento local do aparelho.
+- Política de segurança de conteúdo (CSP) só permite falar com `api.spotify.com` e `accounts.spotify.com`.
+- Nenhum servidor próprio, nenhum rastreador, nenhuma biblioteca de terceiros.
+
+{
+  "name": "Cifra Sync",
+  "short_name": "Cifra Sync",
+  "description": "Cifras que rolam sozinhas acompanhando a música do Spotify.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e0d0b",
+  "theme_color": "#0e0d0b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
+
+:root {
+  --bg: #0e0d0b; --surface: #181613; --surface2: #23201c; --line: #2f2b26;
+  --text: #efe9df; --muted: #9d9487; --chord: #f5a524; --label: #8db6ff;
+  --accent: #f5a524; --on-accent: #1d1406; --ok: #4cc38a; --danger: #ff6b5b;
+  --cur: rgba(245, 165, 36, .12); --mono: ui-monospace, Menlo, "SF Mono", "Roboto Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --bg: #f8f5ef; --surface: #fffdf9; --surface2: #efe9df; --line: #e2dacd;
+  --text: #1d1a16; --muted: #6f675c; --chord: #b45a00; --label: #2a5db0;
+  --accent: #b45a00; --on-accent: #fff; --cur: rgba(180, 90, 0, .10);
+  color-scheme: light;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+body {
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none; touch-action: manipulation; -webkit-text-size-adjust: 100%;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:disabled { opacity: .35; cursor: default; }
+[hidden] { display: none !important; }
+svg { fill: currentColor; }
+
+#app { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); height: 100vh; height: 100dvh; }
+#top { grid-row: 1; } #banner { grid-row: 2; } .stage { grid-row: 3; } #dock { grid-row: 4; }
+
+/* topo */
+#top {
+  display: flex; align-items: center; gap: 10px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 8px calc(env(safe-area-inset-left) + 12px);
+}
+#art, #art-ph { width: 40px; height: 40px; border-radius: 7px; flex: none; object-fit: cover; }
+#art-ph { display: grid; place-items: center; background: var(--surface2); color: var(--muted); font-size: 18px; }
+.meta { min-width: 0; flex: 1; }
+#title { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#artist { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; opacity: .6; }
+.dot.on { background: var(--ok); opacity: 1; }
+.dot.demo { background: var(--label); opacity: 1; }
+.dot.err { background: var(--danger); opacity: 1; }
+.icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--surface2); flex: none; }
+.icon svg { width: 20px; height: 20px; }
+
+#banner {
+  display: flex; gap: 10px; align-items: center; justify-content: space-between;
+  padding: 7px 14px; background: var(--surface2); color: var(--muted); font-size: 13px;
+}
+#banner span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#banner.warn { color: var(--danger); }
+
+/* cifra */
+.stage { position: relative; min-height: 0; }
+#scroller { position: absolute; inset: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+#sheet {
+  font-family: var(--mono); font-variant-ligatures: none; white-space: pre; line-height: 1.38;
+  width: max-content; min-width: 100%; font-size: 16px;
+  padding: 14px calc(env(safe-area-inset-right) + 16px) 72vh calc(env(safe-area-inset-left) + 8px);
+}
+.ln { position: relative; min-height: 1.38em; padding-left: 6px; border-radius: 4px; transition: background-color .3s; }
+.ln.t-chords { color: var(--chord); }
+.ln .c { font-weight: 700; color: var(--chord); }
+.ln .lb, .ln.t-section { color: var(--label); font-style: normal; font-weight: 650; }
+.ln.t-tab { color: var(--muted); }
+.ln.cur { background: var(--cur); box-shadow: inset 3px 0 0 var(--accent); }
+.measure { position: absolute; visibility: hidden; white-space: pre; font-size: 100px; left: 0; top: 0; }
+body.recording .ln { cursor: pointer; }
+body.recording .ln:active { background: var(--surface2); }
+body.recording .ln[data-t]::after {
+  content: attr(data-t); position: absolute; right: 4px; top: .1em;
+  font: 700 11px/1.6 -apple-system, sans-serif; color: var(--on-accent); background: var(--accent); padding: 0 6px; border-radius: 8px;
+}
+.ln.flash { animation: flash .7s ease-out; }
+@keyframes flash { from { background: var(--accent); } to { background: transparent; } }
+
+#empty { padding: 28px 22px 40px; max-width: 520px; margin: 0 auto; text-align: center; }
+#empty h2 { margin: 6px 0 8px; font-size: 21px; }
+#empty p { color: var(--muted); margin: 0 0 14px; }
+#empty p strong { color: var(--text); }
+#empty .steps { text-align: left; color: var(--muted); padding-left: 22px; margin: 0 0 16px; }
+.btns { display: flex; flex-direction: column; gap: 9px; }
+.btn { display: block; width: 100%; padding: 13px 16px; border-radius: 12px; background: var(--surface2); font-weight: 600; text-align: center; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.warn { color: var(--danger) !important; }
+
+/* elementos flutuantes */
+.float { position: absolute; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: 12px; z-index: 5; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+#resume { padding: 10px 18px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 700; white-space: nowrap; }
+#fixed-pill { display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px; background: var(--surface2); left: auto; right: 14px; margin: 0; }
+#fixed-pill button { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+#fixed-toggle { background: var(--accent); color: var(--on-accent); }
+#fixed-toggle svg { width: 18px; height: 18px; }
+#fixed-speed { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 650; }
+#rec-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-radius: 14px;
+  background: var(--surface2); width: calc(100% - 24px); max-width: 560px; font-size: 13px; font-weight: 600;
+}
+#rec-bar span { flex: 1; color: var(--danger); }
+.i-pause { display: none; }
+.playing .i-play, .running .i-play { display: none; }
+.playing .i-pause, .running .i-pause { display: block; }
+
+/* rodapé */
+#dock {
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 0 calc(env(safe-area-inset-right) + 10px) calc(env(safe-area-inset-bottom) + 8px) calc(env(safe-area-inset-left) + 10px);
+}
+#progress { height: 20px; display: flex; align-items: center; cursor: pointer; }
+#progress .bar { height: 3px; width: 100%; background: var(--line); border-radius: 2px; overflow: hidden; }
+#progress-fill { height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.transport { display: flex; gap: 4px; align-items: center; }
+.transport button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+.transport button svg { width: 22px; height: 22px; }
+#play { width: 50px; height: 50px; background: var(--text); color: var(--bg); }
+#play svg { width: 24px; height: 24px; }
+.time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; width: 42px; }
+.time.right { text-align: right; }
+.tools { margin-top: 6px; }
+.seg { display: flex; align-items: center; background: var(--surface2); border-radius: 10px; }
+.seg button { padding: 8px 12px; font-weight: 700; min-width: 40px; }
+.seg span { min-width: 64px; text-align: center; font-size: 13px; font-weight: 650; white-space: nowrap; }
+.pill { padding: 8px 14px; border-radius: 999px; background: var(--surface2); font-weight: 650; font-size: 13px; white-space: nowrap; }
+.pill.primary { background: var(--accent); color: var(--on-accent); }
+.pill.danger { color: var(--danger); }
+#btn-rec.on { background: var(--danger); color: #fff; }
+
+/* sobreposições */
+.ov { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; background: rgba(0,0,0,.5); }
+.panel {
+  margin-top: auto; background: var(--surface); border-radius: 18px 18px 0 0; max-height: 90vh; max-height: 90dvh; overflow: auto;
+  padding: 6px calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
+  width: 100%; max-width: 640px; margin-left: auto; margin-right: auto;
+}
+.panel.full {
+  margin-top: 0; height: 100%; max-height: none; border-radius: 0; display: flex; flex-direction: column; gap: 10px; max-width: none;
+  padding-top: calc(env(safe-area-inset-top) + 10px);
+}
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 6px auto 8px; }
+.panel h4 { margin: 18px 4px 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.group { background: var(--surface2); border-radius: 12px; overflow: hidden; margin: 8px 0; }
+.group.scroll { overflow: auto; flex: 1; margin: 0; }
+.item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); width: 100%; text-align: left; }
+.item:last-child { border-bottom: 0; }
+.item.col { flex-direction: column; align-items: stretch; gap: 8px; }
+.item input[type="range"] { flex: 1; accent-color: var(--accent); }
+.item input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.num { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.li-t { font-weight: 600; }
+.opts { display: flex; gap: 6px; width: 100%; }
+.opt { flex: 1; padding: 9px; border-radius: 9px; background: var(--bg); font-weight: 600; font-size: 14px; }
+.opt.on { background: var(--accent); color: var(--on-accent); }
+.copyrow { display: flex; gap: 8px; align-items: center; }
+.copyrow code { flex: 1; min-width: 0; font: 13px var(--mono); overflow-wrap: anywhere; color: var(--chord); }
+input[type="text"], input[type="search"], textarea {
+  width: 100%; font: 16px/1.35 -apple-system, sans-serif; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; -webkit-appearance: none; appearance: none;
+}
+textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow: auto; resize: none; min-height: 180px; }
+.ed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ed-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ed-actions { display: flex; gap: 8px; overflow-x: auto; }
+.ed-foot { display: flex; align-items: center; gap: 12px; padding-bottom: env(safe-area-inset-bottom); }
+.help { margin: 16px 4px; color: var(--muted); }
+.help summary { cursor: pointer; font-weight: 650; color: var(--text); }
+.help ol { padding-left: 20px; }
+.help li { margin: 6px 0; }
+
+#toast {
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: calc(env(safe-area-inset-bottom) + 130px); transform: translateY(20px);
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 40; max-width: calc(100% - 32px); text-align: center;
+}
+#toast.show { opacity: 1; transform: none; }
+
+/* celular deitado: rodapé mais compacto */
+@media (orientation: landscape) and (max-height: 500px) {
+  #top { padding-top: 6px; padding-bottom: 6px; }
+  #art, #art-ph, .icon { width: 32px; height: 32px; }
+  .tools { margin-top: 0; }
+  #dock { display: flex; align-items: center; gap: 10px; }
+  #dock #progress { position: absolute; left: 0; right: 0; top: -8px; height: 16px; }
+  #dock { position: relative; }
+  #dock .row { flex: 1; }
+  .transport button { width: 38px; height: 38px; }
+  #play { width: 42px; height: 42px; }
+}
+
+/* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
+const CACHE = 'cifrasync-v1';
+const ASSETS = ['./', './index.html', './styles.css', './core.js', './app.js', './manifest.webmanifest',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys()
+    .then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+// Rede primeiro (pega atualizações), cache se estiver sem internet. Só arquivos do próprio app.
+self.addEventListener('fetch', (e) => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== 'GET' || u.origin !== location.origin) return;
+  e.respondWith(
+    fetch(e.request)
+      .then((r) => {
+        if (r.ok && !u.search) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return r;
+      })
+      .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('./')))
+  );
+});
