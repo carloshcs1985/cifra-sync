@@ -1,4 +1,20 @@
-# Validação da versão 6
+# Validação da versão 7
+
+Testes adicionais em Chromium com Spotify e LRCLIB simulados e frases originais:
+
+- Leitura conjunta da letra completa sem inventar tempos de acordes.
+- Reconhecimento de Scar Tissue e Smells Like Teen Spirit por artista/título em outro ID de álbum. Ambas são guias harmônicos simplificados, não cifras integrais.
+- Registro de trocas durante reprodução; rejeição durante pausa; seleção de ocorrências e desfazer.
+- Colunas de acordes importadas preservadas; várias trocas por frase; limites de tempo e busca para trás.
+- Transposição preserva tempos; backup pessoal e reabertura preservam marcações.
+- Outro ID de gravação desativa o uso dos tempos da gravação anterior.
+- Nenhuma exceção de página nos fluxos aprovados.
+- Dez testes Node aprovados: `node --test tests/*.test.cjs`.
+
+A conta real do usuário e o iPhone não foram operados. Não foi obtida uma fonte que sincronize automaticamente todas as cifras do catálogo. Sem tempos de troca, o leitor informa essa ausência.
+
+## Validação anterior da versão 6
+
 
 Em 26/10/2026 foram realizados testes locais em Chromium headless. Os testes de reprodução usam respostas simuladas do Spotify e frases originais de teste; não incluem letras comerciais. A conta real do usuário e o iPhone não foram operados.
 

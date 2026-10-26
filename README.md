@@ -1,12 +1,26 @@
-# Cifra Sync · Estudo 6
+# Cifra Sync · Estudo 7
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
 
-## O que esta versão acrescenta
+## Leitura conjunta na versão 7
+
+A aba **Juntos** exibe a letra inteira, o acorde atual, o próximo e o diagrama. O acorde só é destacado quando existe um tempo salvo para aquela ocorrência: não é calculado dividindo a duração da música pelo número de acordes.
+
+Cifras pessoais com acordes sobre as palavras mantêm suas colunas. Quando o texto corresponde à letra com LRC, a frase acompanha o Spotify. Tempos de frase não informam o instante de cada troca dentro dela.
+
+**Sincronizar trocas** registra os acordes com um toque no instante em que você os ouve. Você pode selecionar a ocorrência, desfazer e retomar. As marcações ficam no aparelho e no backup pessoal; transpor preserva os tempos. Outro ID de gravação, duração incompatível ou mudança na sequência de acordes impede o uso automático das marcações antigas.
+
+Os **430.324 registros não são 430.324 cifras completas**. O banco contém acordes/estrutura, sem letras e sem tempos de troca. Para acompanhar cada acorde automaticamente sem marcação pessoal, ainda é necessária uma fonte com tempos por acorde para a gravação exata. Essa fonte não integra esta versão. A diferença entre letra com tempos e acordes sem tempos aparece na interface.
+
+A seleção inicial foi ampliada com as 293 entradas aproveitáveis de Red Hot Chili Peppers, Nirvana e No Doubt identificadas na fonte. **Scar Tissue** e **Smells Like Teen Spirit** foram acrescentadas como **guias simplificados da harmonia principal**, sem letra embutida, tempos ou arranjo integral. Elas não devem ser confundidas com cifras completas.
+
+A seleção inicial se atualiza ao abrir a versão 7 e preserva as edições pessoais. O arquivo grande de importação continua sendo o mesmo.
+
+## Recursos da biblioteca
 
 - Biblioteca em **IndexedDB**, com migração automática das cifras que estavam no `localStorage`.
 - **430.324 registros** de acordes no arquivo de importação completa. Cerca de 40 MiB de download; o espaço ocupado no navegador é maior.
-- Seleção inicial de **1.032 cifras**, carregada automaticamente na primeira abertura.
+- Seleção inicial de **1.224 registros**, carregada automaticamente na primeira abertura.
 - Busca por ID do Spotify e por artista/título. O botão **Importar banco completo** carrega o acervo no aparelho uma única vez.
 - **828 tipos de acordes e 3.283 posições** em diagramas de guitarra: dedos, casas, cordas soltas e pestanas, com posições alternativas.
 - Aba **Letra**, consulta individual ao LRCLIB e cache local. Quando a resposta traz LRC, a linha acompanha os tempos do Spotify; o trecho atual também pode aparecer sobre a cifra.
@@ -19,11 +33,11 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 6**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 7**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 
-1. A seleção inicial é instalada automaticamente. Dê play no Spotify: a cifra local correspondente deve aparecer.
+1. A seleção inicial é atualizada automaticamente. Dê play no Spotify e abra **Juntos** para ler a letra inteira. Cifras pessoais alinhadas e trocas com tempos salvos aparecem na mesma leitura.
 2. Baixe o arquivo **Cifra_Sync_Biblioteca_430mil.jsonl.gz** entregue junto da atualização. Escolha **Menu → Importar banco completo** e selecione esse arquivo. Não precisa extrair. É uma importação única; depois, a busca usa os dados do aparelho.
 3. Mantenha o aplicativo aberto durante a importação. A tela continua funcionando e é possível interromper; os lotes já gravados permanecem. Reserve espaço livre: no teste, a base ocupou aproximadamente 550 MB, além da interface e dos seus arquivos. O uso real varia por navegador.
 4. Na aba **Acordes**, toque em um diagrama para mudar de posição. Também é possível tocar num acorde da cifra.
@@ -69,4 +83,4 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
-Arquivos novos: `storage.js`, `study-core.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
+Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.

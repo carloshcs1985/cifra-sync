@@ -212,6 +212,7 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 #study-bar { padding:8px 14px; background:var(--surface); border-bottom:1px solid var(--line); min-width:0; }
 .study-tabs { display:flex; gap:6px; }
 .study-tabs button { flex:1; padding:8px 12px; border-radius:9px; color:var(--muted); background:var(--surface2); font-weight:650; }
+.study-tabs button { padding-inline:6px; min-width:0; }
 .study-tabs button[aria-pressed="true"] { color:var(--on-accent); background:var(--accent); }
 #study-status { color:var(--muted); font-size:11px; margin-top:6px; overflow-wrap:anywhere; }
 #lyric-strip { border-top:1px solid var(--line); margin-top:8px; padding-top:8px; min-height:48px; }
@@ -249,3 +250,58 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 .study-chord-mini .finger-number { fill:var(--surface);font-size:9px;font-weight:700; }
 .study-chord-mini.active { background:var(--cur);box-shadow:inset 0 0 0 1px var(--accent); }
 @media(max-height:500px) { #chordbar {max-height:85px;padding:2px 10px;} .study-chord-mini {width:58px;} .study-chord-mini svg {width:50px;height:60px;} }
+
+/* Letra e trocas no mesmo leitor. Somente tempos explícitos ativam os acordes. */
+#together-view { padding:18px 16px 65vh; max-width:900px; margin:auto; }
+.together-heading h2 { font-size:23px; letter-spacing:-.03em; margin:3px 0 6px; }
+.together-heading p { color:var(--muted); font-size:12px; margin:0 0 12px; }
+.together-heading .pill { margin-bottom:14px; }
+.cue-live { position:sticky; top:0; z-index:2; display:flex; gap:14px; align-items:center; background:var(--surface); border:1px solid var(--line); padding:10px 12px; border-radius:13px; min-height:96px; box-shadow:0 5px 18px #0001; }
+.cue-current { text-align:left; flex:none; min-width:70px; }
+.cue-current:disabled { opacity:1; }
+.cue-live small { display:block; font-size:9px; letter-spacing:.08em; color:var(--muted); }
+.cue-current strong { display:block; color:var(--chord); font-size:30px; }
+.cue-next { flex:1; min-width:0; }
+.cue-next strong { font-size:18px; display:block; }
+#cue-clock { font-size:10px; color:var(--muted); display:block; margin-top:3px; }
+#cue-diagram { flex:none; width:64px; }
+#cue-diagram:empty { display:none; }
+#cue-diagram svg { width:64px; max-height:90px; display:block; }
+#cue-diagram .finger-number { fill:var(--surface); font-size:9px; font-weight:700; }
+.sync-explanation { color:var(--muted); font-size:12px; line-height:1.5; }
+.together-lines { margin-top:18px; }
+.together-line { padding:12px 10px; border-radius:10px; margin-bottom:3px; border-left:3px solid transparent; }
+.together-text { font-size:calc(23px * var(--study-scale,1)); line-height:1.55; font-weight:600; opacity:.58; overflow-wrap:anywhere; }
+.together-line.active { background:var(--cur); border-left-color:var(--accent); }
+.together-line.active .together-text { opacity:1; }
+.imported-line { overflow-x:auto; }
+.imported-line pre { font-family:var(--mono); font-size:calc(16px * var(--study-scale,1)); white-space:pre; margin:0; line-height:1.7; }
+.aligned-chords { color:var(--chord); font-weight:750; }
+.aligned-hit { font:inherit; border-radius:4px; }
+.aligned-hit.active { color:var(--on-accent); background:var(--accent); box-shadow:0 0 0 3px var(--accent); }
+.line-cues,.instrumental-cues { display:flex; flex-wrap:wrap; gap:7px; }
+.line-cues:empty { display:none; }
+.instrumental-cues { padding:12px 0; }
+.instrumental-cues>small { flex-basis:100%; color:var(--muted); font-size:10px; }
+.timed-chord { padding:4px 8px; border:1px solid var(--line); border-radius:7px; font-weight:750; color:var(--chord); margin-bottom:5px; }
+.timed-chord small { display:block; color:var(--muted); font-size:9px; font-weight:400; }
+.timed-chord.active { color:var(--on-accent); background:var(--accent); border-color:var(--accent); }
+.timed-chord.active small { color:var(--on-accent); }
+.together-score { margin:20px 0; padding:12px; background:var(--surface); border:1px solid var(--line); border-radius:10px; font-size:13px; }
+.together-score summary { cursor:pointer; color:var(--chord); font-weight:650; }
+.together-score pre { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.8 var(--mono); }
+#ov-chord-sync { z-index:35; }
+#ov-chord-sync .panel { display:flex; flex-direction:column; gap:12px; max-width:660px; }
+.sync-transport { display:flex; align-items:center; justify-content:space-between; }
+#sync-caption { margin:0; }
+#sync-mark { flex:none; min-height:62px; font-size:20px; touch-action:manipulation; }
+#sync-undo { align-self:center; }
+.sync-events { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; overflow:auto; min-height:80px; padding:3px; }
+.sync-event { border:1px solid var(--line); padding:6px; border-radius:8px; }
+.sync-event strong,.sync-event span { display:block; }
+.sync-event strong { font-size:18px; color:var(--chord); }
+.sync-event small,.sync-event span { font-size:10px; color:var(--muted); }
+.sync-event.saved { background:var(--cur); }
+.sync-event.selected { outline:2px solid var(--accent); }
+@media(min-width:800px) { .together-text {font-size:calc(30px * var(--study-scale,1));} }
+@media(max-height:500px) { .cue-live {min-height:64px;padding:5px 10px;} #cue-diagram svg {max-height:60px;} #ov-chord-sync .hint {display:none;} }
