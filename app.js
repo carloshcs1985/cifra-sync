@@ -2,10 +2,11 @@
 (() => {
   'use strict';
   const C = window.CifraCore;
+  const K = window.CifraChords;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '3';
+  const APP_VERSION = '4';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -79,7 +80,7 @@
   store.songs = store.songs && typeof store.songs === 'object' ? store.songs : {};
   store.queue = Array.isArray(store.queue) ? store.queue : [];
   store.settings = Object.assign(
-    { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false },
+    { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false, diagrams: true },
     store.settings || {}
   );
   const save = () => { if (!writeJSON(STORE_KEY, store)) toast('Não consegui salvar (armazenamento cheio?)'); };
@@ -99,7 +100,7 @@
     banner: $('#banner'), scroller: $('#scroller'), sheet: $('#sheet'), empty: $('#empty'),
     resume: $('#resume'), fixedPill: $('#fixed-pill'), fixedToggle: $('#fixed-toggle'), fixedSpeed: $('#fixed-speed'),
     recBar: $('#rec-bar'), time: $('#time'), dur: $('#dur'), fill: $('#progress-fill'), progress: $('#progress'),
-    play: $('#play'), key: $('#key'), btnRec: $('#btn-rec'), toast: $('#toast'),
+    play: $('#play'), key: $('#key'), btnRec: $('#btn-rec'), toast: $('#toast'), chordbar: $('#chordbar'),
   };
 
   /* ---------- utilidades ---------- */
@@ -143,13 +144,30 @@
     if (s) { s.trackIds.push(track.id); save(); }
     return s || null;
   }
-  function hasSongFor(trackId, key) {
-    return Object.values(store.songs).some((x) => (x.trackIds && x.trackIds.includes(trackId)) || x.key === key);
+  const songHasLyrics = (x) => String(x.sheet || '').split('\n').some((l) => C.classifyLine(l) === 'lyric');
+  function songsFor(trackId, key) {
+    return Object.values(store.songs).filter((x) => (x.trackIds && x.trackIds.includes(trackId)) || x.key === key);
+  }
+  /** needLyrics: só conta se a cifra tiver letra (não só a sequência de acordes). */
+  function hasSongFor(trackId, key, needLyrics = false) {
+    return songsFor(trackId, key).some((x) => !needLyrics || songHasLyrics(x));
+  }
+  /** Salva a cifra de uma música: substitui a versão só com acordes, se existir; senão cria. */
+  function upsertForTrack(track, title, artist, text) {
+    const key = C.normKey(artist, title);
+    const ex = songsFor(track.id, C.normKey(track.artist, track.title)).concat(songsFor(track.id, key));
+    const target = ex.find((x) => !songHasLyrics(x)) || null;
+    if (target) {
+      Object.assign(target, { sheet: text, anchors: [], transpose: 0, updatedAt: Date.now() });
+      if (!target.trackIds.includes(track.id)) target.trackIds.push(track.id);
+      return target;
+    }
+    return newSong(title, artist, text, track.id);
   }
   /** Tira da fila de pendentes tudo que já ganhou cifra. */
   function pruneQueue() {
     const before = store.queue.length;
-    store.queue = store.queue.filter((q) => !hasSongFor(q.trackId, q.key));
+    store.queue = store.queue.filter((q) => !hasSongFor(q.trackId, q.key, !!q.needLyrics));
     if (store.queue.length !== before) save();
   }
   function resolveTrackSong() { S.trackSong = S.track ? findSongForTrack(S.track) : null; }
@@ -429,6 +447,7 @@
       S.lines = []; S.types = []; S.els = []; S.units = null; S.pts = null; S.timeline = null; S.keyName = null;
       el.sheet.replaceChildren();
       el.sheet.hidden = true;
+      renderChordbar();
       renderEmpty();
       return;
     }
@@ -451,6 +470,7 @@
     S.els = [...el.sheet.children];
     S.curUnit = -1;
     markAnchors();
+    renderChordbar();
     applyFont();
     rebuildTimeline();
   }
@@ -533,6 +553,40 @@
     S.timeline = S.units && S.track && song ? C.buildTimeline(song.anchors, S.units.cum, S.units.total, S.track.duration) : null;
   }
 
+  /* ---------- diagramas dos acordes ---------- */
+  const chordName = (p) => p.root + p.suffix + (p.bass ? '/' + p.bass : '');
+  function lineChords(i) {
+    if (S.types[i] !== 'chords') return [];
+    return C.tokenize(S.lines[i]).map((t) => C.parseChordToken(t.text)).filter(Boolean).map(chordName);
+  }
+  function renderChordbar() {
+    const bar = el.chordbar;
+    const show = store.settings.diagrams && S.lines.length && !el.sheet.hidden;
+    const names = [];
+    if (show) for (let i = 0; i < S.lines.length; i++) for (const n of lineChords(i)) if (!names.includes(n)) names.push(n);
+    if (!show || !names.length || !K) { bar.hidden = true; bar.replaceChildren(); return; }
+    bar.innerHTML = names.map((n) => {
+      const v = K.voicing(n);
+      return `<button class="cdi" data-ch="${esc(n)}"${v && v.simplified ? ' title="Posição simplificada"' : ''}>
+        <span class="cdn">${esc(n)}${v && v.simplified ? '<i class="cds">≈</i>' : ''}</span>${v ? K.svg(v) : '<span class="cdq">?</span>'}</button>`;
+    }).join('');
+    bar.hidden = false;
+  }
+  function focusChords(names, smooth = true) {
+    const bar = el.chordbar;
+    if (bar.hidden) return;
+    let first = null;
+    for (const b of bar.children) {
+      const on = names.includes(b.dataset.ch);
+      b.classList.toggle('on', on);
+      if (on && !first) first = b;
+    }
+    if (first) {
+      const left = first.offsetLeft - 8;
+      if (Math.abs(bar.scrollLeft - left) > 4) bar.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+    }
+  }
+
   function highlight(w) {
     const i = C.unitAt(w, S.units);
     if (i === S.curUnit) return;
@@ -541,6 +595,8 @@
     if (i < 0 || !S.els[i]) return;
     S.els[i].classList.add('cur');
     if (i > 0 && S.units.w[i - 1] === 0) S.els[i - 1].classList.add('cur');
+    const near = lineChords(i).concat(i > 0 && S.units.w[i - 1] === 0 ? lineChords(i - 1) : []);
+    if (near.length) focusChords(near);
   }
 
   /* ---------- laço de rolagem (60 vezes por segundo) ---------- */
@@ -686,7 +742,7 @@
     const song = id ? store.songs[id] : null;
     const t = opts.link || S.track;
     const link = !song && !opts.noLink && t && (opts.link || !S.viewingId) ? t.id : null;
-    S.editing = { id: song ? song.id : null, linkTrackId: link };
+    S.editing = { id: song ? song.id : null, linkTrackId: link, linkTrack: link ? { id: t.id, title: t.title, artist: t.artist } : null };
     $('#ed-heading').textContent = song ? 'Editar cifra' : 'Nova cifra';
     $('#ed-title').value = song ? song.title : link ? C.baseTitle(t.title) : '';
     $('#ed-artist').value = song ? song.artist : link ? t.artist.split(',')[0].trim() : '';
@@ -707,7 +763,8 @@
       Object.assign(song, { sheet: text, title, artist, key: C.normKey(artist, title), updatedAt: Date.now() });
       if (changedLines && song.anchors && song.anchors.length) toast('As linhas mudaram: confira as marcações de tempo.', 4000);
     } else {
-      song = newSong(title, artist, text, S.editing && S.editing.linkTrackId);
+      const lt = S.editing && S.editing.linkTrack;
+      song = lt ? upsertForTrack(lt, title, artist, text) : newSong(title, artist, text, null);
     }
     save();
     pruneQueue();
@@ -742,7 +799,7 @@
       toast(txt ? 'Não parece uma cifra. Confira e toque em Salvar.' : 'Não achei texto copiado. Cole no campo abaixo.', 4000);
       return false;
     }
-    newSong(C.baseTitle(track.title), String(track.artist || '').split(',')[0].trim(), txt, track.id);
+    upsertForTrack(track, C.baseTitle(track.title), String(track.artist || '').split(',')[0].trim(), txt);
     save();
     pruneQueue();
     resolveTrackSong();
@@ -815,9 +872,11 @@
         if (!t || !t.id || t.is_local || (t.type && t.type !== 'track')) continue;
         const artist = (t.artists || []).map((a) => a.name).join(', ');
         const key = C.normKey(artist, t.name);
-        if (hasSongFor(t.id, key)) { had++; continue; }
+        const needLyrics = $('#pl-chordonly').checked;
+        if (hasSongFor(t.id, key, needLyrics)) { had++; continue; }
+        const chordOnly = needLyrics && hasSongFor(t.id, key);
         if (queued.has(t.id) || store.queue.some((q) => q.key === key)) { dup++; continue; }
-        store.queue.push({ trackId: t.id, title: t.name, artist, key, playlist: name, addedAt: Date.now() });
+        store.queue.push({ trackId: t.id, title: t.name, artist, key, playlist: name, addedAt: Date.now(), needLyrics: chordOnly || undefined });
         queued.add(t.id);
         added++;
       }
@@ -825,7 +884,7 @@
       hide('#ov-pl');
       openQueue();
       const parts = [`${added} adicionada(s) à fila`];
-      if (had) parts.push(`${had} já tinham cifra`);
+      if (had) parts.push(`${had} já tinham cifra com letra`);
       if (dup) parts.push(`${dup} já estavam na fila`);
       toast(parts.join(' · '), 4500);
     } catch (e) {
@@ -848,7 +907,7 @@
     }
     list.innerHTML = store.queue.map((q) => `
       <div class="item qrow${q.trackId === queueActive ? ' active' : ''}" data-q="${esc(q.trackId)}">
-        <span class="qinfo"><span class="li-t">${esc(C.baseTitle(q.title) || q.title)}</span><br><span class="sub">${esc(q.artist)}</span>
+        <span class="qinfo"><span class="li-t">${esc(C.baseTitle(q.title) || q.title)}</span><br><span class="sub">${esc(q.artist)}${q.needLyrics ? ' · só acordes' : ''}</span>
           <button class="lnk" data-qa="google">Google</button></span>
         <span class="qbtns">
           <button class="pill" data-qa="cc">Cifra Club</button>
@@ -1057,6 +1116,7 @@
     $('#m-speed-row').hidden = st.scrollMode !== 'fixed';
     $('#m-clear-anchors').hidden = !(currentSong() && (currentSong().anchors || []).length);
     $('#m-fit').checked = !!st.fit;
+    $('#m-diagrams').checked = !!st.diagrams;
     $('#m-light').checked = st.theme === 'light';
     $('#m-client').value = st.clientId;
     $('#m-redirect').textContent = REDIRECT_URI;
@@ -1126,6 +1186,14 @@
     el.sheet.addEventListener('click', (e) => {
       const ln = e.target.closest('.ln');
       if (!ln) return;
+      const cEl = e.target.closest('.c');
+      if (cEl && !S.recording) {
+        const p = C.parseChordToken(cEl.textContent);
+        if (p) {
+          if (el.chordbar.hidden) toast('Ative "Mostrar diagramas dos acordes" no menu.');
+          else { hold(2500); focusChords([chordName(p)]); }
+        }
+      }
       const i = +ln.dataset.i;
       if (S.recording) { addAnchor(i); return; }
       const now = performance.now();
@@ -1256,6 +1324,8 @@
       toast('Marcações apagadas.');
     });
     $('#m-fit').addEventListener('change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
+    $('#m-diagrams').addEventListener('change', (e) => { store.settings.diagrams = e.target.checked; save(); renderChordbar(); measure(); });
+    el.chordbar.addEventListener('click', (e) => { const b = e.target.closest('.cdi'); if (b) focusChords([b.dataset.ch]); });
     $('#m-light').addEventListener('change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
     $('#m-client').addEventListener('change', (e) => {
       const v = e.target.value.trim();

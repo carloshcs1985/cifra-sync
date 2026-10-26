@@ -1,7 +1,7 @@
 /* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
-const VERSION = '3';
+const VERSION = '4';
 const CACHE = 'cifrasync-v' + VERSION;
-const ASSETS = ['./', './index.html', './styles.css?v=' + VERSION, './core.js?v=' + VERSION, './app.js?v=' + VERSION,
+const ASSETS = ['./', './index.html', './styles.css?v=' + VERSION, './core.js?v=' + VERSION, './chords.js?v=' + VERSION, './app.js?v=' + VERSION,
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
