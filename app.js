@@ -2,15 +2,11 @@
 (() => {
   'use strict';
   const C = window.CifraCore;
-  const K = window.CifraChords;
+  const DB = window.CifraDB, Catalog = window.CifraCatalog, Study = window.CifraStudy;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-  // liga um evento só se o elemento existir (página de outra versão não derruba o app)
-  const on = (sel, ev, fn) => { const n = $(sel); if (n) n.addEventListener(ev, fn); };
-  // grava uma propriedade só se o elemento existir
-  const setp = (sel, prop, val) => { const n = $(sel); if (n) n[prop] = val; };
 
-  const APP_VERSION = '5';
+  const APP_VERSION = '6';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -84,10 +80,19 @@
   store.songs = store.songs && typeof store.songs === 'object' ? store.songs : {};
   store.queue = Array.isArray(store.queue) ? store.queue : [];
   store.settings = Object.assign(
-    { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false, diagrams: true },
+    { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false },
     store.settings || {}
   );
-  const save = () => { if (!writeJSON(STORE_KEY, store)) toast('Não consegui salvar (armazenamento cheio?)'); };
+  let persistQueue = Promise.resolve(true);
+  const save = () => {
+    const ok = writeJSON(STORE_KEY, { settings: store.settings, queue: store.queue, storage: 'indexeddb' });
+    if (!ok) toast('Não consegui salvar as configurações.');
+    const active = S.viewingId ? store.songs[S.viewingId] : S.trackSong;
+    if (active) store.songs[active.id] = active;
+    const rows = Object.values(store.songs).map(s => ({ ...s, anchors:[...(s.anchors||[])], trackIds:[...(s.trackIds||[])] }));
+    persistQueue = persistQueue.then(() => DB.bulkPut(rows)).then(() => true).catch(() => { toast('Não consegui salvar as cifras. Confira o espaço disponível.', 6000); return false; });
+    return persistQueue;
+  };
 
   /* ---------- estado ---------- */
   const S = {
@@ -104,7 +109,7 @@
     banner: $('#banner'), scroller: $('#scroller'), sheet: $('#sheet'), empty: $('#empty'),
     resume: $('#resume'), fixedPill: $('#fixed-pill'), fixedToggle: $('#fixed-toggle'), fixedSpeed: $('#fixed-speed'),
     recBar: $('#rec-bar'), time: $('#time'), dur: $('#dur'), fill: $('#progress-fill'), progress: $('#progress'),
-    play: $('#play'), key: $('#key'), btnRec: $('#btn-rec'), toast: $('#toast'), chordbar: $('#chordbar'),
+    play: $('#play'), key: $('#key'), btnRec: $('#btn-rec'), toast: $('#toast'),
   };
 
   /* ---------- utilidades ---------- */
@@ -121,6 +126,7 @@
   const openUrl = (u) => window.open(u, '_blank', 'noopener');
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const normTranspose = (t) => ((((t + 5) % 12) + 12) % 12) - 5; // -5..+6
+  const touch = song => { song.updatedAt = Math.max(Date.now(), (+song.updatedAt || 0) + 1); };
 
   function est() {
     if (!S.track) return 0;
@@ -133,48 +139,63 @@
   /* ---------- músicas ---------- */
   function newSong(title, artist, sheet, trackId) {
     const s = {
-      id: newId(), title: title || 'Sem título', artist: artist || '', sheet, transpose: 0, anchors: [],
+      id: newId(), title: title || 'Sem título', artist: artist || '', sheet, transpose: 0, anchors: [], kind: 'personal',
       trackIds: trackId ? [trackId] : [], key: C.normKey(artist, title), createdAt: Date.now(), updatedAt: Date.now(),
     };
     store.songs[s.id] = s;
     return s;
   }
-  function findSongForTrack(track) {
-    const all = Object.values(store.songs);
-    let s = all.find((x) => x.trackIds && x.trackIds.includes(track.id));
-    if (s) return s;
-    const k = C.normKey(track.artist, track.title);
-    s = all.find((x) => x.key === k);
-    if (s) { s.trackIds.push(track.id); save(); }
-    return s || null;
-  }
-  const songHasLyrics = (x) => String(x.sheet || '').split('\n').some((l) => C.classifyLine(l) === 'lyric');
-  function songsFor(trackId, key) {
-    return Object.values(store.songs).filter((x) => (x.trackIds && x.trackIds.includes(trackId)) || x.key === key);
-  }
-  /** needLyrics: só conta se a cifra tiver letra (não só a sequência de acordes). */
-  function hasSongFor(trackId, key, needLyrics = false) {
-    return songsFor(trackId, key).some((x) => !needLyrics || songHasLyrics(x));
-  }
-  /** Salva a cifra de uma música: substitui a versão só com acordes, se existir; senão cria. */
-  function upsertForTrack(track, title, artist, text) {
-    const key = C.normKey(artist, title);
-    const ex = songsFor(track.id, C.normKey(track.artist, track.title)).concat(songsFor(track.id, key));
-    const target = ex.find((x) => !songHasLyrics(x)) || null;
-    if (target) {
-      Object.assign(target, { sheet: text, anchors: [], transpose: 0, updatedAt: Date.now() });
-      if (!target.trackIds.includes(track.id)) target.trackIds.push(track.id);
-      return target;
+  async function findSongForTrack(track) {
+    await persistQueue;
+    const key = C.normKey(track.artist, track.title);
+    let s = await DB.find(track.id, key);
+    if (s && !s.trackIds.includes(track.id) && window.CifraStudyCore.variant(s.title) !== window.CifraStudyCore.variant(track.title)) s = null;
+    if (!s) {
+      try { await Catalog.ensure(track); s = await DB.find(track.id, key); }
+      catch { S.catalogMessage = 'Catálogo não carregado: confira a conexão ou importe a base offline.'; }
     }
-    return newSong(title, artist, text, track.id);
+    if (s && !s.trackIds.includes(track.id) && window.CifraStudyCore.variant(s.title) !== window.CifraStudyCore.variant(track.title)) return null;
+    if (!s) return null;
+    // Keep one object for the active chart so an in-flight read cannot detach a user's edit.
+    const current = store.songs[s.id] || (S.trackSong?.id === s.id ? S.trackSong : null);
+    if (current) {
+      if (s.updatedAt >= current.updatedAt && !(current.kind === 'personal' && s.kind === 'catalog')) Object.assign(current, s);
+      s = current;
+    }
+    if (!s.artist || /^Faixa Spotify /.test(s.title)) {Object.assign(s, { title:track.title, artist:track.artist, key });touch(s);}
+    if (!s.trackIds.includes(track.id)) { s.trackIds.push(track.id); touch(s); }
+    store.songs[s.id] = s;
+    // Bounded working set. The complete library stays indexed on disk.
+    for (const id of Object.keys(store.songs).slice(0, -128)) if (id !== s.id && id !== S.viewingId && id !== S.editing?.id) delete store.songs[id];
+    await save(); return s;
+  }
+  async function hasSongFor(trackId, key, title, artist, needLyrics=false) {
+    await persistQueue;
+    let song=await DB.find(trackId,key);
+    if(!song){try{await Catalog.ensure({id:trackId});song=await DB.find(trackId,key);}catch{}}
+    if(song && title && artist && !song.artist){Object.assign(song,{title,artist,key});touch(song);await DB.bulkPut([song]);}
+    return !!song && (!needLyrics || song.hasLyrics);
   }
   /** Tira da fila de pendentes tudo que já ganhou cifra. */
-  function pruneQueue() {
-    const before = store.queue.length;
-    store.queue = store.queue.filter((q) => !hasSongFor(q.trackId, q.key, !!q.needLyrics));
-    if (store.queue.length !== before) save();
+  async function pruneQueue() {
+    await persistQueue;
+    const snapshot = store.queue.slice(), have = await DB.hasMany(snapshot);
+    const remove = new Set(snapshot.filter((q, i) => have[i]).map(q => q.trackId));
+    if (remove.size) { store.queue = store.queue.filter(q => !remove.has(q.trackId)); await save(); }
   }
-  function resolveTrackSong() { S.trackSong = S.track ? findSongForTrack(S.track) : null; }
+  let resolveTicket = 0;
+  async function resolveTrackSong() {
+    const ticket=++resolveTicket, track=S.track;
+    if (!track) { S.trackSong=null; S.loadingChart=false; Study.loadLyrics(null,currentSong()); return; }
+    S.loadingChart=true; S.catalogMessage='';
+    try {
+      const song=await findSongForTrack(track);
+      if(ticket!==resolveTicket || S.track?.id!==track.id)return;
+      S.trackSong=song; S.loadingChart=false;
+      render();
+      if(!S.viewingId) Study.loadLyrics(track,song);
+    } catch { if(ticket===resolveTicket){S.loadingChart=false;S.trackSong=null;S.catalogMessage='Não consegui ler a biblioteca local.';render();} }
+  }
 
   /* ---------- Spotify: login PKCE (sem servidor, sem segredo) ---------- */
   let token = readJSON(TOKEN_KEY, null);
@@ -323,6 +344,7 @@
           title: it.name || '—',
           artist: artists.map((a) => a.name).join(', '),
           duration: it.duration_ms || 0,
+          album: it.album?.name || '',
           art: pickArt((it.album && it.album.images) || it.images),
         };
         const same = S.track && S.track.id === track.id;
@@ -363,6 +385,8 @@
     S.track = track;
     if (changed) {
       S.recording = false;
+      S.trackSong = null;
+      if (!S.viewingId) Study.clear();
       resolveTrackSong();
       S.curUnit = -1;
       S.scrollF = 0;
@@ -426,6 +450,7 @@
     renderHeader();
     renderSheet();
     updateChrome();
+    Study.refresh();
   }
 
   function renderHeader() {
@@ -451,14 +476,13 @@
       S.lines = []; S.types = []; S.els = []; S.units = null; S.pts = null; S.timeline = null; S.keyName = null;
       el.sheet.replaceChildren();
       el.sheet.hidden = true;
-      renderChordbar();
       renderEmpty();
       return;
     }
     el.empty.hidden = true;
     el.sheet.hidden = false;
     const tr = C.transposeSheet(song.sheet, song.transpose || 0);
-    S.keyName = tr.key;
+    S.keyName = song.tonic ? C.transposeNote(song.tonic, song.transpose || 0, false) : tr.key;
     S.lines = tr.text.split('\n');
     S.types = S.lines.map((l) => C.classifyLine(l));
     S.units = C.computeUnits(S.types);
@@ -474,7 +498,6 @@
     S.els = [...el.sheet.children];
     S.curUnit = -1;
     markAnchors();
-    renderChordbar();
     applyFont();
     rebuildTimeline();
   }
@@ -497,8 +520,9 @@
         ${S.connMsg ? `<p class="warn">${esc(S.connMsg)}</p>` : ''}
         <div class="btns"><button class="btn" data-a="library">Abrir biblioteca</button></div>`;
     } else {
-      html = `<h2>Sem cifra para esta música</h2>
+      html = `<h2>${S.loadingChart ? 'Procurando na biblioteca…' : 'Ainda sem cifra para esta música'}</h2>
         <p><strong>${esc(S.track.title)}</strong><br>${esc(S.track.artist)}</p>
+        <p>${esc(S.catalogMessage || (S.loadingChart ? 'O catálogo é consultado pelo ID do Spotify.' : 'Você pode continuar na aba Letra ou importar um arquivo.'))}</p>
         <ol class="steps"><li>Abra no Cifra Club e copie a cifra.</li><li>Volte aqui e toque em “Colar cifra copiada”.</li></ol>
         <div class="btns">
           <button class="btn primary" data-a="cc">Abrir no Cifra Club</button>
@@ -557,41 +581,6 @@
     S.timeline = S.units && S.track && song ? C.buildTimeline(song.anchors, S.units.cum, S.units.total, S.track.duration) : null;
   }
 
-  /* ---------- diagramas dos acordes ---------- */
-  const chordName = (p) => p.root + p.suffix + (p.bass ? '/' + p.bass : '');
-  function lineChords(i) {
-    if (S.types[i] !== 'chords') return [];
-    return C.tokenize(S.lines[i]).map((t) => C.parseChordToken(t.text)).filter(Boolean).map(chordName);
-  }
-  function renderChordbar() {
-    const bar = el.chordbar;
-    if (!bar) return;
-    const show = store.settings.diagrams && S.lines.length && !el.sheet.hidden;
-    const names = [];
-    if (show) for (let i = 0; i < S.lines.length; i++) for (const n of lineChords(i)) if (!names.includes(n)) names.push(n);
-    if (!show || !names.length || !K) { bar.hidden = true; bar.replaceChildren(); return; }
-    bar.innerHTML = names.map((n) => {
-      const v = K.voicing(n);
-      return `<button class="cdi" data-ch="${esc(n)}"${v && v.simplified ? ' title="Posição simplificada"' : ''}>
-        <span class="cdn">${esc(n)}${v && v.simplified ? '<i class="cds">≈</i>' : ''}</span>${v ? K.svg(v) : '<span class="cdq">?</span>'}</button>`;
-    }).join('');
-    bar.hidden = false;
-  }
-  function focusChords(names, smooth = true) {
-    const bar = el.chordbar;
-    if (!bar || bar.hidden) return;
-    let first = null;
-    for (const b of bar.children) {
-      const on = names.includes(b.dataset.ch);
-      b.classList.toggle('on', on);
-      if (on && !first) first = b;
-    }
-    if (first) {
-      const left = first.offsetLeft - 8;
-      if (Math.abs(bar.scrollLeft - left) > 4) bar.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
-    }
-  }
-
   function highlight(w) {
     const i = C.unitAt(w, S.units);
     if (i === S.curUnit) return;
@@ -599,9 +588,8 @@
     S.curUnit = i;
     if (i < 0 || !S.els[i]) return;
     S.els[i].classList.add('cur');
+    Study.focusChords(S.lines[i] || '', i>0 ? S.lines[i-1] : '');
     if (i > 0 && S.units.w[i - 1] === 0) S.els[i - 1].classList.add('cur');
-    const near = lineChords(i).concat(i > 0 && S.units.w[i - 1] === 0 ? lineChords(i - 1) : []);
-    if (near.length) focusChords(near);
   }
 
   /* ---------- laço de rolagem (60 vezes por segundo) ---------- */
@@ -621,6 +609,8 @@
     const sc = el.scroller;
     if (Math.abs(sc.scrollTop - S.scrollF) > 3) S.scrollF = sc.scrollTop; // a pessoa rolou
     const holding = now < S.holdUntil;
+    if (Study.frame(S.viewingId ? 0 : p, holding)) { setResume(holding); return; }
+    if (Study.mode() === 'chords') { setResume(false); return; }
     const maxScroll = Math.max(0, sc.scrollHeight - sc.clientHeight);
 
     if (store.settings.scrollMode === 'fixed') {
@@ -662,7 +652,8 @@
     song.anchors.push(a);
     song.anchors.sort((x, y) => x.t - y.t);
     S.undo.push(a);
-    song.updatedAt = Date.now();
+    touch(song);
+    song.kind = 'personal';
     save();
     rebuildTimeline();
     markAnchors();
@@ -674,6 +665,7 @@
     const a = S.undo.pop();
     if (!song || !a) { toast('Nada para desfazer.'); return; }
     song.anchors = song.anchors.filter((x) => !(x.line === a.line && x.t === a.t));
+    song.kind = 'personal'; touch(song);
     save();
     rebuildTimeline();
     markAnchors();
@@ -702,10 +694,10 @@
       el.key.textContent = S.keyName ? S.keyName + (tp ? ` (${sign(tp)})` : '') : tp ? sign(tp) : 'Tom';
     } else el.key.textContent = 'Tom';
     $('#key-down').disabled = $('#key-up').disabled = !song;
-    $('#font-down').disabled = $('#font-up').disabled = !song;
+    $('#font-down').disabled = $('#font-up').disabled = !song && Study.mode() !== 'lyrics';
 
     el.btnRec.hidden = mode !== 'spotify';
-    el.btnRec.disabled = !syncing();
+    el.btnRec.disabled = !syncing() || Study.mode() !== 'sheet';
     el.btnRec.classList.toggle('on', S.recording);
     el.btnRec.textContent = S.recording ? '● Gravando' : '● Marcar';
     el.recBar.hidden = !S.recording;
@@ -719,13 +711,13 @@
       el.banner.className = '';
       el.banner.innerHTML = `<span>Biblioteca: ${esc(song.title)}</span><button class="pill" data-a="back">${S.track ? 'Voltar à música atual' : 'Fechar'}</button>`;
       el.banner.hidden = false;
-    } else if (S.versionWarn) {
-      el.banner.className = 'warn';
-      el.banner.innerHTML = `<span>${esc(S.versionWarn)}</span>`;
-      el.banner.hidden = false;
     } else if (S.connMsg && S.track) {
       el.banner.className = 'warn';
       el.banner.innerHTML = `<span>${esc(S.connMsg)}</span>`;
+      el.banner.hidden = false;
+    } else if (song?.studyNote) {
+      el.banner.className = '';
+      el.banner.innerHTML = `<span title="${esc(song.studyNote)}">${esc(song.studyNote)}</span>`;
       el.banner.hidden = false;
     } else el.banner.hidden = true;
   }
@@ -751,7 +743,7 @@
     const song = id ? store.songs[id] : null;
     const t = opts.link || S.track;
     const link = !song && !opts.noLink && t && (opts.link || !S.viewingId) ? t.id : null;
-    S.editing = { id: song ? song.id : null, linkTrackId: link, linkTrack: link ? { id: t.id, title: t.title, artist: t.artist } : null };
+    S.editing = { id: song ? song.id : null, linkTrackId: link };
     $('#ed-heading').textContent = song ? 'Editar cifra' : 'Nova cifra';
     $('#ed-title').value = song ? song.title : link ? C.baseTitle(t.title) : '';
     $('#ed-artist').value = song ? song.artist : link ? t.artist.split(',')[0].trim() : '';
@@ -761,7 +753,7 @@
     show('#ov-editor');
   }
 
-  function saveEditor() {
+  async function saveEditor() {
     const text = C.cleanPasted($('#ed-text').value);
     if (!text.trim()) { toast('A cifra está vazia.'); return; }
     const title = $('#ed-title').value.trim() || 'Sem título';
@@ -769,25 +761,29 @@
     let song = S.editing && S.editing.id ? store.songs[S.editing.id] : null;
     if (song) {
       const changedLines = song.sheet.split('\n').length !== text.split('\n').length;
-      Object.assign(song, { sheet: text, title, artist, key: C.normKey(artist, title), updatedAt: Date.now() });
+      Object.assign(song, { sheet: text, title, artist, key: C.normKey(artist, title), kind:'personal' });
+      touch(song);
       if (changedLines && song.anchors && song.anchors.length) toast('As linhas mudaram: confira as marcações de tempo.', 4000);
     } else {
-      const lt = S.editing && S.editing.linkTrack;
-      song = lt ? upsertForTrack(lt, title, artist, text) : newSong(title, artist, text, null);
+      song = newSong(title, artist, text, S.editing && S.editing.linkTrackId);
     }
-    save();
-    pruneQueue();
+    if (!(await save())) return;
+    await pruneQueue();
     hide('#ov-editor');
     resolveTrackSong();
     render();
+    Study.loadLyrics(S.viewingId ? null : S.track, song);
     if (!$('#ov-queue').hidden) renderQueue();
   }
 
-  function deleteSong() {
+  async function deleteSong() {
     const id = S.editing && S.editing.id;
     if (!id || !store.songs[id]) return;
     if (!confirm('Excluir esta cifra?')) return;
+    await persistQueue;
+    await DB.remove(id);
     delete store.songs[id];
+    if (S.trackSong?.id === id) S.trackSong = null;
     if (S.viewingId === id) S.viewingId = null;
     save();
     hide('#ov-editor');
@@ -808,10 +804,12 @@
       toast(txt ? 'Não parece uma cifra. Confira e toque em Salvar.' : 'Não achei texto copiado. Cole no campo abaixo.', 4000);
       return false;
     }
-    upsertForTrack(track, C.baseTitle(track.title), String(track.artist || '').split(',')[0].trim(), txt);
-    save();
-    pruneQueue();
-    resolveTrackSong();
+    const existing=await DB.find(track.id,C.normKey(track.artist,track.title));
+    if(existing && !existing.hasLyrics){Object.assign(existing,{sheet:txt,anchors:[],transpose:0,kind:'personal'});touch(existing);store.songs[existing.id]=existing;if(S.trackSong?.id===existing.id)S.trackSong=existing;}
+    else newSong(C.baseTitle(track.title), String(track.artist || '').split(',')[0].trim(), txt, track.id);
+    if (!(await save())) return false;
+    await pruneQueue();
+    await resolveTrackSong();
     render();
     return true;
   }
@@ -881,11 +879,11 @@
         if (!t || !t.id || t.is_local || (t.type && t.type !== 'track')) continue;
         const artist = (t.artists || []).map((a) => a.name).join(', ');
         const key = C.normKey(artist, t.name);
-        const needLyrics = $('#pl-chordonly') ? $('#pl-chordonly').checked : true;
-        if (hasSongFor(t.id, key, needLyrics)) { had++; continue; }
-        const chordOnly = needLyrics && hasSongFor(t.id, key);
+        list.innerHTML = `<div class="item col"><strong>Preparando sua biblioteca…</strong><span class="sub">${esc(t.name)} · ${had+added+dup+1} de ${entries.length}</span></div>`;
+        const needLyrics=!!$('#pl-chordonly')?.checked;
+        if (await hasSongFor(t.id, key, t.name, artist, needLyrics)) { had++; continue; }
         if (queued.has(t.id) || store.queue.some((q) => q.key === key)) { dup++; continue; }
-        store.queue.push({ trackId: t.id, title: t.name, artist, key, playlist: name, addedAt: Date.now(), needLyrics: chordOnly || undefined });
+        store.queue.push({ trackId: t.id, title: t.name, artist, key, needLyrics, playlist: name, addedAt: Date.now() });
         queued.add(t.id);
         added++;
       }
@@ -893,7 +891,7 @@
       hide('#ov-pl');
       openQueue();
       const parts = [`${added} adicionada(s) à fila`];
-      if (had) parts.push(`${had} já tinham cifra com letra`);
+      if (had) parts.push(`${had} já tinham cifra`);
       if (dup) parts.push(`${dup} já estavam na fila`);
       toast(parts.join(' · '), 4500);
     } catch (e) {
@@ -903,7 +901,7 @@
   }
 
   let queueActive = null; // música aberta no Cifra Club por último
-  function openQueue() { hide('#ov-menu'); hide('#ov-lib'); pruneQueue(); renderQueue(); show('#ov-queue'); }
+  async function openQueue() { hide('#ov-menu'); hide('#ov-lib'); await pruneQueue(); renderQueue(); show('#ov-queue'); }
   function renderQueue() {
     const n = store.queue.length;
     $('#q-heading').textContent = n ? `Pendentes (${n})` : 'Pendentes';
@@ -916,7 +914,7 @@
     }
     list.innerHTML = store.queue.map((q) => `
       <div class="item qrow${q.trackId === queueActive ? ' active' : ''}" data-q="${esc(q.trackId)}">
-        <span class="qinfo"><span class="li-t">${esc(C.baseTitle(q.title) || q.title)}</span><br><span class="sub">${esc(q.artist)}${q.needLyrics ? ' · só acordes' : ''}</span>
+        <span class="qinfo"><span class="li-t">${esc(C.baseTitle(q.title) || q.title)}</span><br><span class="sub">${esc(q.artist)}</span>
           <button class="lnk" data-qa="google">Google</button></span>
         <span class="qbtns">
           <button class="pill" data-qa="cc">Cifra Club</button>
@@ -956,74 +954,73 @@
     catch { return new TextDecoder('windows-1252').decode(buf); } // arquivos antigos do Windows
   }
   async function importFiles(files) {
-    let added = 0, exists = 0, skipped = [];
-    for (const f of files) {
-      if (f.size > 1024 * 1024) { skipped.push(f.name); continue; }
-      let parsed;
-      try { parsed = C.parseImportFile(f.name, await decodeFile(f)); } catch { skipped.push(f.name); continue; }
-      for (const s of parsed) {
-        if (!s.hasChords) { skipped.push(f.name); continue; }
-        const key = C.normKey(s.artist, s.title);
-        if (Object.values(store.songs).some((x) => x.key === key)) { exists++; continue; }
-        newSong(s.title, s.artist, s.sheet, null);
-        added++;
-      }
-    }
-    save();
-    pruneQueue();
-    resolveTrackSong();
+    hide('#ov-menu');
+    try {
+      await persistQueue;
+      const lrc = [...files].filter(f => /\.lrc$/i.test(f.name));
+      for (const file of lrc) await Study.importLrc(file);
+      const charts = [...files].filter(f => !/\.lrc$/i.test(f.name));
+      const result = charts.length ? await Catalog.importFiles(charts) : { written:0, ignored:0 };
+      await reloadWorking();
+      toast(`${result.written} cifra(s) salvas · ${lrc.length} LRC${result.ignored ? ' · '+result.ignored+' arquivo(s) ignorado(s)' : ''}`, 6000);
+    } catch (e) { toast(e.message, 7000); }
+  }
+  async function reloadWorking() {
+    const viewed=S.viewingId;
+    store.songs={};
+    if(viewed){const song=await DB.get(viewed);if(song)store.songs[viewed]=song;else S.viewingId=null;}
+    await pruneQueue();
+    await resolveTrackSong();
     render();
-    if (!$('#ov-lib').hidden) renderLib();
-    const parts = [`${added} cifra(s) importada(s)`];
-    if (exists) parts.push(`${exists} já existiam`);
-    if (skipped.length) parts.push(`${skipped.length} sem acordes: ${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}`);
-    toast(parts.join(' · '), 6000);
+    if(!$('#ov-lib').hidden)await renderLib();
+  }
+  function downloadCatalog() {
+    hide('#ov-menu');
+    toast('Selecione o arquivo Cifra_Sync_Biblioteca_430mil.jsonl.gz. Não precisa extrair.',6000);
+    $('#import-songs').click();
   }
 
   /* ---------- biblioteca ---------- */
-  function openLib() {
+  async function openLib() {
     $('#lib-search').value = '';
-    pruneQueue();
-    $('#lib-queue').textContent = store.queue.length ? `Pendentes (${store.queue.length})` : 'Pendentes';
-    renderLib();
-    show('#ov-lib');
+    await pruneQueue();
+    $('#lib-queue').textContent=store.queue.length ? `Pendentes (${store.queue.length})`:'Pendentes';
+    show('#ov-lib');await renderLib();
   }
-  function renderLib() {
-    const q = C.fold($('#lib-search').value).trim();
-    const songs = Object.values(store.songs)
-      .filter((s) => !q || C.fold(s.title + ' ' + s.artist).includes(q))
-      .sort((a, b) => (a.artist || '').localeCompare(b.artist || '', 'pt') || a.title.localeCompare(b.title, 'pt'));
-    const list = $('#lib-list');
-    if (!songs.length) {
-      list.innerHTML = `<div class="item sub">${q ? 'Nada encontrado.' : 'Nenhuma cifra salva ainda.'}</div>`;
-      return;
-    }
-    list.innerHTML = songs.map((s) => {
-      const tags = [s.anchors && s.anchors.length ? '⏱ sincronizada' : '', s.transpose ? 'tom ' + sign(s.transpose) : ''].filter(Boolean).join(' · ');
-      return `<button class="item" data-id="${esc(s.id)}"><span><span class="li-t">${esc(s.title)}</span><br><span class="sub">${esc(s.artist || '—')}</span></span><span class="sub">${tags}</span></button>`;
+  let libraryTicket=0;
+  async function renderLib() {
+    const ticket=++libraryTicket,q=$('#lib-search').value.trim();
+    await persistQueue;
+    const songs=await DB.search(q,100),count=await DB.count();
+    if(ticket!==libraryTicket)return;
+    $('#lib-summary').textContent=`${count.toLocaleString('pt-BR')} cifras no aparelho · até 100 resultados por busca`;
+    const list=$('#lib-list');
+    if(!songs.length){list.innerHTML=`<div class="item sub">${q?'Nada encontrado.':'Ainda não há cifras com nome. As faixas do catálogo sem nome serão identificadas quando tocarem.'}</div>`;return;}
+    list.innerHTML=songs.map(song=>{
+      const tags=[song.kind==='catalog'?'Catálogo':'Minha cifra',song.anchors?.length?'⏱ marcada':''].filter(Boolean).join(' · ');
+      return `<button class="item" data-id="${esc(song.id)}"><span><span class="li-t">${esc(song.title)}</span><br><span class="sub">${esc(song.artist)}</span></span><span class="sub">${tags}</span></button>`;
     }).join('');
   }
-  function pickSong(id) {
-    const s = store.songs[id];
-    if (!s) return;
-    hide('#ov-lib');
-    if (S.track && s.trackIds.includes(S.track.id)) S.viewingId = null;
-    else if (S.track && !S.trackSong && !S.demo && confirm(`Usar esta cifra sempre que tocar “${S.track.title}”?`)) {
-      s.trackIds.push(S.track.id);
-      save();
-      pruneQueue();
-      resolveTrackSong();
-      S.viewingId = null;
-    } else S.viewingId = id;
-    S.recording = false;
-    S.scrollF = 0;
-    el.scroller.scrollTop = 0;
-    render();
+  async function pickSong(id) {
+    try {
+      await persistQueue;
+      const song=await DB.get(id);if(!song)return;store.songs[id]=song;
+      hide('#ov-lib');
+      if(S.track && song.trackIds.includes(S.track.id)) S.viewingId=null;
+      else if(S.track && !S.trackSong && !S.demo && confirm(`Usar esta cifra sempre que tocar “${S.track.title}”?`)){
+        song.trackIds.push(S.track.id);touch(song);await save();await pruneQueue();await resolveTrackSong();S.viewingId=null;
+      }else S.viewingId=id;
+      S.recording=false;S.scrollF=0;el.scroller.scrollTop=0;render();
+      Study.loadLyrics(S.viewingId?null:S.track,song);
+    }catch(e){toast('Não consegui abrir esta cifra.',5000);}
   }
 
-  /* ---------- backup ---------- */
+  /* ---------- backup das cifras pessoais ---------- */
+
   async function exportBackup() {
-    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: store.songs, queue: store.queue }, null, 2);
+    await persistQueue;
+    const personal=await DB.personal();
+    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: Object.fromEntries(personal.map(s=>[s.id,s])), queue: store.queue }, null, 2);
     const name = `cifra-sync-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([json], name, { type: 'application/json' });
     try {
@@ -1047,38 +1044,12 @@
       key: C.normKey(s.artist, s.title), createdAt: +s.createdAt || Date.now(), updatedAt: +s.updatedAt || Date.now(),
     };
   }
-  async function importBackup(file) {
-    try {
-      const data = JSON.parse(await file.text());
-      if (!data || !data.songs || typeof data.songs !== 'object') throw new Error('formato');
-      let n = 0;
-      for (const raw of Object.values(data.songs)) {
-        const s = sanitizeSong(raw);
-        if (!s) continue;
-        const cur = store.songs[s.id];
-        if (!cur || s.updatedAt > (cur.updatedAt || 0)) { store.songs[s.id] = s; n++; }
-      }
-      if (Array.isArray(data.queue)) {
-        const have = new Set(store.queue.map((q) => q.trackId));
-        for (const q of data.queue.slice(0, 5000)) {
-          if (!q || typeof q.trackId !== 'string' || have.has(q.trackId)) continue;
-          const title = String(q.title || '').slice(0, 200), artist = String(q.artist || '').slice(0, 300);
-          store.queue.push({ trackId: q.trackId.slice(0, 120), title, artist, key: C.normKey(artist, title), playlist: String(q.playlist || '').slice(0, 200), addedAt: +q.addedAt || Date.now() });
-          have.add(q.trackId);
-        }
-      }
-      save();
-      pruneQueue();
-      resolveTrackSong();
-      render();
-      toast(`${n} cifra(s) importada(s).`);
-    } catch { toast('Arquivo de backup inválido.'); }
-  }
+  async function importBackup(file) { await importFiles([file]); }
 
   /* ---------- demonstração ---------- */
-  function ensureDemoSong() {
-    let s = Object.values(store.songs).find((x) => x.trackIds.includes(DEMO_TRACK.id));
-    if (s) return;
+  async function ensureDemoSong() {
+    let s = await DB.find(DEMO_TRACK.id, '');
+    if (s) {store.songs[s.id]=s;return;}
     s = newSong(DEMO_TRACK.title, DEMO_TRACK.artist, DEMO_SHEET, DEMO_TRACK.id);
     const lines = DEMO_SHEET.split('\n');
     const at = (label, nth = 1) => { let c = 0; return lines.findIndex((l) => l.startsWith(label) && ++c === nth); };
@@ -1088,11 +1059,11 @@
     ].filter(([line]) => line >= 0).map(([line, t]) => ({ line, t }));
     save();
   }
-  function startDemo() {
+  async function startDemo() {
     clearTimeout(pollTimer);
     store.settings.demo = true;
     save();
-    ensureDemoSong();
+    await ensureDemoSong();
     S.demo = true;
     S.connMsg = '';
     S.viewingId = null;
@@ -1120,20 +1091,19 @@
   function syncMenu() {
     const st = store.settings;
     $$('.opt').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.scrollMode));
-    setp('#m-speed', 'value', st.speed);
-    setp('#m-speed-val', 'textContent', st.speed + ' px/s');
+    $('#m-speed').value = st.speed;
+    $('#m-speed-val').textContent = st.speed + ' px/s';
     $('#m-speed-row').hidden = st.scrollMode !== 'fixed';
     $('#m-clear-anchors').hidden = !(currentSong() && (currentSong().anchors || []).length);
-    setp('#m-fit', 'checked', !!st.fit);
-    setp('#m-diagrams', 'checked', !!st.diagrams);
-    setp('#m-light', 'checked', st.theme === 'light');
-    setp('#m-client', 'value', st.clientId);
-    setp('#m-redirect', 'textContent', REDIRECT_URI);
-    setp('#m-connect-label', 'textContent', token ? 'Desconectar do Spotify' : 'Conectar ao Spotify');
-    setp('#m-demo', 'checked', S.demo);
-    setp('#m-lib-count', 'textContent', Object.keys(store.songs).length + ' salvas');
-    setp('#m-queue-count', 'textContent', store.queue.length ? store.queue.length + ' músicas' : '');
-    setp('#m-version', 'textContent', 'Cifra Sync · versão ' + APP_VERSION);
+    $('#m-fit').checked = !!st.fit;
+    $('#m-light').checked = st.theme === 'light';
+    $('#m-client').value = st.clientId;
+    $('#m-redirect').textContent = REDIRECT_URI;
+    $('#m-connect-label').textContent = token ? 'Desconectar do Spotify' : 'Conectar ao Spotify';
+    $('#m-demo').checked = S.demo;
+    DB.count().then(n=>{$('#m-lib-count').textContent=n.toLocaleString('pt-BR')+' salvas';}).catch(()=>{});
+    $('#m-queue-count').textContent = store.queue.length ? store.queue.length + ' músicas' : '';
+    $('#m-version').textContent = 'Cifra Sync · versão ' + APP_VERSION;
   }
   function applyTheme() {
     document.documentElement.dataset.theme = store.settings.theme;
@@ -1142,8 +1112,8 @@
 
   /* ---------- eventos ---------- */
   function bind() {
-    on('#btn-menu', 'click', openMenu);
-    on('#btn-edit', 'click', () => {
+    $('#btn-menu').addEventListener('click', openMenu);
+    $('#btn-edit').addEventListener('click', () => {
       const song = currentSong();
       if (song) openEditor(song.id);
       else if (S.track) openEditor(null);
@@ -1162,20 +1132,23 @@
       const song = currentSong();
       if (!song) return;
       song.transpose = normTranspose((song.transpose || 0) + d);
-      song.updatedAt = Date.now();
+      touch(song);
+      song.kind = 'personal';
       save();
       renderSheet();
+      Study.refresh();
       updateChrome();
     };
-    on('#key-down', 'click', () => transpose(-1));
-    on('#key-up', 'click', () => transpose(1));
+    $('#key-down').addEventListener('click', () => transpose(-1));
+    $('#key-up').addEventListener('click', () => transpose(1));
     const font = (f) => {
       store.settings.fontScale = Math.max(0.6, Math.min(2.2, +(store.settings.fontScale * f).toFixed(3)));
       save();
       applyFont();
+      Study.refresh();
     };
-    on('#font-down', 'click', () => font(1 / 1.1));
-    on('#font-up', 'click', () => font(1.1));
+    $('#font-down').addEventListener('click', () => font(1 / 1.1));
+    $('#font-up').addEventListener('click', () => font(1.1));
 
     el.btnRec.addEventListener('click', () => {
       if (!syncing()) { toast('Dê play nesta música no Spotify para marcar.'); return; }
@@ -1184,25 +1157,17 @@
       if (S.recording) { markAnchors(); if (!S.isPlaying) toast('Dê play e toque em cada linha quando ela começar.', 4000); }
       updateChrome();
     });
-    on('#rec-done', 'click', () => {
+    $('#rec-done').addEventListener('click', () => {
       S.recording = false;
       const n = (currentSong() && currentSong().anchors.length) || 0;
       toast(n ? `${n} marcação(ões) salva(s).` : 'Nenhuma marcação.');
       updateChrome();
     });
-    on('#rec-undo', 'click', undoAnchor);
+    $('#rec-undo').addEventListener('click', undoAnchor);
 
     el.sheet.addEventListener('click', (e) => {
       const ln = e.target.closest('.ln');
       if (!ln) return;
-      const cEl = e.target.closest('.c');
-      if (cEl && !S.recording) {
-        const p = C.parseChordToken(cEl.textContent);
-        if (p) {
-          if (!el.chordbar || el.chordbar.hidden) toast('Ative "Mostrar diagramas dos acordes" no menu.');
-          else { hold(2500); focusChords([chordName(p)]); }
-        }
-      }
       const i = +ln.dataset.i;
       if (S.recording) { addAnchor(i); return; }
       const now = performance.now();
@@ -1250,40 +1215,41 @@
       S.scrollF = 0;
       el.scroller.scrollTop = 0;
       render();
+      Study.loadLyrics(S.track,S.trackSong);
     });
 
     // editor
-    on('#ed-cancel', 'click', () => hide('#ov-editor'));
-    on('#ed-save', 'click', saveEditor);
-    on('#ed-delete', 'click', deleteSong);
-    on('#ed-paste', 'click', async () => {
+    $('#ed-cancel').addEventListener('click', () => hide('#ov-editor'));
+    $('#ed-save').addEventListener('click', saveEditor);
+    $('#ed-delete').addEventListener('click', deleteSong);
+    $('#ed-paste').addEventListener('click', async () => {
       const txt = await readClipboard();
       if (!txt) { toast('Não consegui ler a área de transferência. Toque e segure no campo para colar.', 4000); return; }
       $('#ed-text').value = C.cleanPasted(txt);
     });
-    on('#ed-cc', 'click', () => openUrl(C.cifraClubUrl($('#ed-artist').value, $('#ed-title').value)));
-    on('#ed-google', 'click', () => openUrl(C.googleUrl($('#ed-artist').value, $('#ed-title').value)));
+    $('#ed-cc').addEventListener('click', () => openUrl(C.cifraClubUrl($('#ed-artist').value, $('#ed-title').value)));
+    $('#ed-google').addEventListener('click', () => openUrl(C.googleUrl($('#ed-artist').value, $('#ed-title').value)));
 
     // biblioteca
-    on('#lib-close', 'click', () => hide('#ov-lib'));
-    on('#lib-new', 'click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
-    on('#lib-search', 'input', renderLib);
-    on('#lib-list', 'click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
-    on('#lib-import', 'click', () => $('#import-songs').click());
-    on('#lib-pl', 'click', openPlaylists);
-    on('#lib-queue', 'click', openQueue);
+    $('#lib-close').addEventListener('click', () => hide('#ov-lib'));
+    $('#lib-new').addEventListener('click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
+    $('#lib-search').addEventListener('input', debounce(renderLib,180));
+    $('#lib-list').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
+    $('#lib-import').addEventListener('click', () => $('#import-songs').click());
+    $('#lib-pl').addEventListener('click', openPlaylists);
+    $('#lib-queue').addEventListener('click', openQueue);
 
     // lote: arquivos, playlists e pendentes
-    on('#import-songs', 'change', (e) => {
+    $('#import-songs').addEventListener('change', (e) => {
       const fs = [...(e.target.files || [])];
       e.target.value = '';
       if (fs.length) importFiles(fs);
     });
-    on('#m-queue', 'click', openQueue);
-    on('#m-pl', 'click', openPlaylists);
-    on('#m-import-songs', 'click', () => { hide('#ov-menu'); $('#import-songs').click(); });
-    on('#pl-close', 'click', () => hide('#ov-pl'));
-    on('#pl-list', 'click', (e) => {
+    $('#m-queue').addEventListener('click', openQueue);
+    $('#m-pl').addEventListener('click', openPlaylists);
+    $('#m-import-songs').addEventListener('click', () => { hide('#ov-menu'); $('#import-songs').click(); });
+    $('#pl-close').addEventListener('click', () => hide('#ov-pl'));
+    $('#pl-list').addEventListener('click', (e) => {
       if (e.target.closest('[data-a="reauth"]')) { login(); return; }
       const b = e.target.closest('[data-pl]');
       if (!b) return;
@@ -1293,15 +1259,15 @@
       }
       importPlaylist(b.dataset.pl, b.dataset.name);
     });
-    on('#q-close', 'click', () => hide('#ov-queue'));
-    on('#q-clear', 'click', () => {
+    $('#q-close').addEventListener('click', () => hide('#ov-queue'));
+    $('#q-clear').addEventListener('click', () => {
       if (!confirm('Limpar toda a fila de pendentes?')) return;
       store.queue = [];
       queueActive = null;
       save();
       renderQueue();
     });
-    on('#q-list', 'click', (e) => {
+    $('#q-list').addEventListener('click', (e) => {
       if (e.target.closest('[data-a="from-pl"]')) { hide('#ov-queue'); openPlaylists(); return; }
       const b = e.target.closest('[data-qa]');
       const row = e.target.closest('[data-q]');
@@ -1309,9 +1275,9 @@
     });
 
     // menu
-    on('#ov-menu', 'click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
-    on('#m-close', 'click', () => hide('#ov-menu'));
-    on('#m-lib', 'click', () => { hide('#ov-menu'); openLib(); });
+    $('#ov-menu').addEventListener('click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
+    $('#m-close').addEventListener('click', () => hide('#ov-menu'));
+    $('#m-lib').addEventListener('click', () => { hide('#ov-menu'); openLib(); });
     $$('.opt').forEach((b) => b.addEventListener('click', () => {
       store.settings.scrollMode = b.dataset.mode;
       S.fixedRunning = false;
@@ -1321,22 +1287,21 @@
       updateChrome();
       updateWakeLock();
     }));
-    on('#m-speed', 'input', (e) => { store.settings.speed = +e.target.value; save(); syncMenu(); updateChrome(); });
-    on('#m-clear-anchors', 'click', () => {
+    $('#m-speed').addEventListener('input', (e) => { store.settings.speed = +e.target.value; save(); syncMenu(); updateChrome(); });
+    $('#m-clear-anchors').addEventListener('click', () => {
       const song = currentSong();
       if (!song || !confirm('Apagar as marcações de tempo desta música?')) return;
       song.anchors = [];
+      song.kind = 'personal'; touch(song);
       save();
       rebuildTimeline();
       markAnchors();
       syncMenu();
       toast('Marcações apagadas.');
     });
-    on('#m-fit', 'change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
-    on('#m-diagrams', 'change', (e) => { store.settings.diagrams = e.target.checked; save(); renderChordbar(); measure(); });
-    if (el.chordbar) el.chordbar.addEventListener('click', (e) => { const b = e.target.closest('.cdi'); if (b) focusChords([b.dataset.ch]); });
-    on('#m-light', 'change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
-    on('#m-client', 'change', (e) => {
+    $('#m-fit').addEventListener('change', (e) => { store.settings.fit = e.target.checked; save(); applyFont(); });
+    $('#m-light').addEventListener('change', (e) => { store.settings.theme = e.target.checked ? 'light' : 'dark'; save(); applyTheme(); });
+    $('#m-client').addEventListener('change', (e) => {
       const v = e.target.value.trim();
       if (v === store.settings.clientId) return;
       store.settings.clientId = v;
@@ -1346,10 +1311,10 @@
       render();
       toast(v ? 'Client ID salvo.' : 'Client ID removido.');
     });
-    on('#m-copy', 'click', async () => {
+    $('#m-copy').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(REDIRECT_URI); toast('Endereço copiado.'); } catch { toast('Copie manualmente: ' + REDIRECT_URI, 5000); }
     });
-    on('#m-connect', 'click', () => {
+    $('#m-connect').addEventListener('click', () => {
       if (token) {
         clearToken();
         clearTimeout(pollTimer);
@@ -1365,14 +1330,16 @@
         login();
       }
     });
-    on('#m-export', 'click', exportBackup);
-    on('#m-import', 'click', () => $('#import-file').click());
-    on('#import-file', 'change', (e) => {
+    $('#m-export').addEventListener('click', () => exportBackup().catch(()=>toast('Não consegui exportar as cifras pessoais.')));
+    $('#m-download-catalog').addEventListener('click', downloadCatalog);
+    window.addEventListener('cifra-import-queue',e=>{const have=new Set(store.queue.map(q=>q.trackId));for(const q of e.detail){if(q&&typeof q.trackId==='string'&&!have.has(q.trackId)){store.queue.push({...q,key:C.normKey(q.artist,q.title)});have.add(q.trackId);}}save();});
+    $('#m-import').addEventListener('click', () => $('#import-file').click());
+    $('#import-file').addEventListener('change', (e) => {
       const f = e.target.files && e.target.files[0];
       e.target.value = '';
       if (f) importBackup(f);
     });
-    on('#m-demo', 'change', (e) => {
+    $('#m-demo').addEventListener('change', (e) => {
       hide('#ov-menu');
       if (e.target.checked) startDemo();
       else stopDemo();
@@ -1404,21 +1371,35 @@
     if (pageV === APP_VERSION) { try { sessionStorage.removeItem('cifrasync.reloaded'); } catch {} return false; }
     let tried = false;
     try { tried = sessionStorage.getItem('cifrasync.reloaded') === '1'; sessionStorage.setItem('cifrasync.reloaded', '1'); } catch {}
-    if (tried) {
-      S.versionWarn = `Atualização incompleta: a página está na versão ${pageV || 'antiga'} e o código na ${APP_VERSION}. Reenvie o index.html ao GitHub.`;
-      return false;
-    }
+    if (tried) { S.versionWarn='Atualização incompleta: a página e o código têm versões diferentes. Reabra após a publicação terminar.'; return false; }
     location.reload();
     return true;
   }
 
   async function boot() {
     if (versionMismatch()) return;
+    if(S.versionWarn || !DB || !Catalog || !Study){
+      el.empty.hidden=false;el.empty.innerHTML='<h2>Atualização incompleta</h2><p>Seus dados foram mantidos. Reabra o aplicativo após a publicação terminar.</p><button class="btn" id="retry-update">Recarregar</button>';
+      $('#retry-update').onclick=()=>location.reload();return;
+    }
+    el.empty.hidden=false;el.empty.textContent='Preparando sua biblioteca de estudo…';
+    try {
+      await DB.open();
+      const legacy=Object.values(store.songs);
+      if(legacy.length){
+        await DB.meta('legacy-backup', JSON.stringify(store));
+        for(let i=0;i<legacy.length;i+=500)await DB.bulkPut(legacy.slice(i,i+500).map(s=>({...s,kind:'personal'})));
+      }
+      store.songs={};
+      if(!writeJSON(STORE_KEY,{settings:store.settings,queue:store.queue,storage:'indexeddb'}))throw new Error('Não consegui salvar as configurações.');
+    }catch(e){el.empty.innerHTML='<h2>Biblioteca indisponível</h2><p>Seus dados anteriores foram mantidos. Confira o espaço disponível e reabra o app.</p>';return;}
     applyTheme();
     measureCharRatio();
-    try { bind(); } catch (e) { S.versionWarn = S.versionWarn || 'Erro ao iniciar: ' + e.message + '. Reenvie todos os arquivos ao GitHub.'; }
+    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    bind();
+    try{await Catalog.seed();}catch{toast('Biblioteca inicial não carregada. Suas cifras salvas continuam disponíveis.',5000);}
     try { await handleRedirect(); } catch (e) { toast('Erro no login: ' + e.message, 5000); }
-    if (store.settings.demo) startDemo();
+    if (store.settings.demo) await startDemo();
     else { setConn(token ? 'on' : 'off'); render(); if (token) poll(); }
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measureCharRatio(); applyFont(); });
     requestAnimationFrame(frame);

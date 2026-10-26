@@ -207,7 +207,7 @@
     for (const tk of tokenize(line)) {
       out += esc(line.slice(pos, tk.index));
       if (isLabel(tk.text, k === 0)) out += '<i class="lb">' + esc(tk.text) + '</i>';
-      else if (parseChordToken(tk.text)) out += '<b class="c">' + esc(tk.text) + '</b>';
+      else if (parseChordToken(tk.text)) out += '<button type="button" class="c chord-hit" data-chord="' + esc(tk.text) + '" aria-label="Ver posição de ' + esc(tk.text) + '">' + esc(tk.text) + '</button>';
       else out += esc(tk.text);
       pos = tk.index + tk.text.length;
       k++;

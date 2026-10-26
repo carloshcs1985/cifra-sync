@@ -22,8 +22,8 @@ button:disabled { opacity: .35; cursor: default; }
 [hidden] { display: none !important; }
 svg { fill: currentColor; }
 
-#app { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); height: 100vh; height: 100dvh; }
-#top { grid-row: 1; } #banner { grid-row: 2; } #chordbar { grid-row: 3; } .stage { grid-row: 4; } #dock { grid-row: 5; }
+#app { display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); height: 100vh; height: 100dvh; }
+#top { grid-row: 1; } #banner { grid-row: 2; } #study-bar { grid-row: 3; } #chordbar { grid-row: 4; } .stage { grid-row: 5; } #dock { grid-row: 6; }
 
 /* topo */
 #top {
@@ -208,26 +208,44 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 .qbtns .pill.primary { background: var(--accent); }
 .center { text-align: center; margin: 10px 0 0; }
 
-/* diagramas dos acordes */
-#chordbar {
-  display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;
-  padding: 6px calc(env(safe-area-inset-right) + 10px) 6px calc(env(safe-area-inset-left) + 10px);
-  background: var(--surface); border-bottom: 1px solid var(--line); scrollbar-width: none;
-}
-#chordbar::-webkit-scrollbar { display: none; }
-.cdi { flex: none; width: 66px; padding: 3px 2px 1px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; transition: background-color .25s; }
-.cdi.on { background: var(--cur); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.cdn { font: 700 13px/1.2 var(--mono); color: var(--chord); white-space: nowrap; max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
-.cds { font-style: normal; color: var(--muted); margin-left: 2px; }
-.cdq { height: 76px; display: grid; place-items: center; color: var(--muted); }
-svg.cd { width: 62px; height: 82px; display: block; }
-.cd-s, .cd-f { stroke: var(--muted); stroke-width: .8; }
-.cd-nut, .cd-d, .cd-b { fill: var(--text); }
-.cd-t { fill: var(--bg); font: 700 6.6px -apple-system, sans-serif; }
-.cd-m { fill: var(--muted); font: 700 7.5px -apple-system, sans-serif; }
-.cd-n { fill: var(--muted); font: 600 7px -apple-system, sans-serif; }
-.cd-o { fill: none; stroke: var(--muted); stroke-width: .9; }
-@media (orientation: landscape) and (max-height: 500px) {
-  #chordbar { padding-top: 3px; padding-bottom: 3px; }
-  .cdi { width: 52px; } svg.cd { width: 48px; height: 62px; } .cdn { font-size: 11.5px; }
-}
+/* Área de estudo */
+#study-bar { padding:8px 14px; background:var(--surface); border-bottom:1px solid var(--line); min-width:0; }
+.study-tabs { display:flex; gap:6px; }
+.study-tabs button { flex:1; padding:8px 12px; border-radius:9px; color:var(--muted); background:var(--surface2); font-weight:650; }
+.study-tabs button[aria-pressed="true"] { color:var(--on-accent); background:var(--accent); }
+#study-status { color:var(--muted); font-size:11px; margin-top:6px; overflow-wrap:anywhere; }
+#lyric-strip { border-top:1px solid var(--line); margin-top:8px; padding-top:8px; min-height:48px; }
+#lyric-strip strong,#lyric-strip span { display:block; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
+#lyric-strip strong { font-size:16px; } #lyric-strip span { font-size:12px; color:var(--muted); margin-top:3px; }
+.chord-hit { font:inherit; line-height:inherit; vertical-align:baseline; display:inline; border-radius:3px; }
+.chord-hit:focus-visible { outline:2px solid var(--label); outline-offset:2px; }
+#lyrics-view,#chords-view { padding:24px 20px 65vh; max-width:960px; margin:auto; }
+.reader-heading { margin-bottom:26px; } .reader-heading h2 { font-size:26px; margin:5px 0 9px; letter-spacing:-.03em; }
+.reader-heading p { font-size:12px; color:var(--muted); line-height:1.7; }
+.eyebrow { letter-spacing:.12em; font-size:10px; font-weight:750; color:var(--chord); }
+.lyric-line { font-size:clamp(20px,3.6vw,32px); line-height:1.55; font-weight:600; opacity:.5; padding:8px 12px; border-radius:8px; transition:opacity .2s,background .2s; overflow-wrap:anywhere; }
+.lyric-line.active { opacity:1; background:var(--cur); box-shadow:inset 3px 0 var(--accent); }
+.lyric-empty { color:var(--muted); line-height:1.7; } .lyric-empty .btn { margin-top:20px; }
+.chord-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(125px,1fr)); gap:12px; }
+.chord-card { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:14px 8px; color:var(--text); text-align:center; }
+.chord-card strong { display:block; color:var(--chord); font-size:17px; margin-bottom:7px; }
+.chord-card svg { width:115px; max-width:100%; display:block; margin:auto; }
+.chord-card svg .finger-number,#chord-shape svg .finger-number { fill:var(--surface); font-size:9px; font-weight:750; }
+.fret-label,.string-label { font-size:10px; fill:var(--muted); } .open-string { font-size:14px; fill:var(--text); }
+.diagram-unavailable { min-height:112px; padding:24px 7px; }
+.chord-panel { max-width:440px; text-align:center; padding-bottom:calc(env(safe-area-inset-bottom) + 22px); }
+#chord-title { font-size:28px; color:var(--chord); } #chord-shape { max-width:220px; margin:16px auto; min-height:180px; }
+#chord-shape svg { width:100%; } .shape-navigation { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }
+#import-progress { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 154px); left:12px; right:12px; z-index:60; background:var(--surface2); border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 40px #0005; padding:14px; max-width:520px; margin:auto; }
+#import-status { display:block; font-size:13px; margin-bottom:10px; } #import-meter { width:calc(100% - 110px); height:9px; margin-right:8px; accent-color:var(--accent); }
+@media(min-width:800px) { #study-bar { padding:10px max(20px,calc((100vw - 960px)/2)); } .study-tabs { max-width:440px; } }
+@media(max-height:500px) { #lyric-strip {display:none;} #study-status {display:none;} #study-bar {padding:4px 12px;} .study-tabs button {padding:5px;} }
+.lyric-line { font-size:calc(clamp(20px,3.6vw,32px) * var(--study-scale,1)); }
+
+#chordbar { display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;max-height:124px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--line);scrollbar-width:none; }
+.study-chord-mini { flex:none;width:76px;text-align:center;padding:4px;border-radius:9px; }
+.study-chord-mini strong { display:block;font:700 13px var(--mono);color:var(--chord); }
+.study-chord-mini svg { width:66px;height:84px;display:block; }
+.study-chord-mini .finger-number { fill:var(--surface);font-size:9px;font-weight:700; }
+.study-chord-mini.active { background:var(--cur);box-shadow:inset 0 0 0 1px var(--accent); }
+@media(max-height:500px) { #chordbar {max-height:85px;padding:2px 10px;} .study-chord-mini {width:58px;} .study-chord-mini svg {width:50px;height:60px;} }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://lrclib.net; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0e0d0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="5">
-<link rel="stylesheet" href="styles.css?v=5">
+<meta name="app-version" content="6">
+<link rel="stylesheet" href="styles.css?v=6">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -32,11 +32,18 @@
   </header>
 
   <div id="banner" hidden></div>
-  <div id="chordbar" hidden aria-label="Diagramas dos acordes"></div>
 
+  <section id="study-bar" aria-label="Área de estudo">
+    <div class="study-tabs"><button data-study-mode="sheet" aria-pressed="true">Cifra</button><button data-study-mode="lyrics" aria-pressed="false">Letra</button><button data-study-mode="chords" aria-pressed="false">Acordes</button></div>
+    <div id="study-status" role="status">Biblioteca de estudo</div>
+    <div id="lyric-strip" hidden><strong id="lyric-current"></strong><span id="lyric-next"></span></div>
+  </section>
+  <div id="chordbar" hidden aria-label="Diagramas dos acordes do trecho"></div>
   <div class="stage">
     <main id="scroller">
       <div id="sheet" hidden></div>
+      <section id="lyrics-view" hidden></section>
+      <section id="chords-view" hidden></section>
       <div id="empty" hidden></div>
     </main>
     <button id="resume" class="float" hidden>↧ Voltar a acompanhar</button>
@@ -110,7 +117,7 @@
     <h4>Exibição</h4>
     <div class="group">
       <label class="item"><span>Ajustar a cifra à largura da tela</span><input type="checkbox" id="m-fit"></label>
-      <label class="item"><span>Mostrar diagramas dos acordes</span><input type="checkbox" id="m-diagrams"></label>
+      <label class="item"><span>Mostrar barra de acordes durante o estudo</span><input type="checkbox" id="m-diagrams" checked></label>
       <label class="item"><span>Tema claro</span><input type="checkbox" id="m-light"></label>
     </div>
 
@@ -127,9 +134,18 @@
       <button class="item" id="m-connect"><span id="m-connect-label">Conectar ao Spotify</span></button>
     </div>
 
+    <h4>Estudo e letras</h4>
+    <div class="group">
+      <label class="item"><span>Consultar letra automaticamente no LRCLIB</span><input type="checkbox" id="m-auto-lyrics" checked></label>
+      <label class="item"><span>Mostrar trecho da letra sobre a cifra</span><input type="checkbox" id="m-lyric-strip" checked></label>
+      <button class="item" id="m-retry-lyrics"><span>Tentar carregar a letra novamente</span></button>
+    </div>
+    <h4>Biblioteca offline</h4>
+    <div class="group"><button class="item" id="m-download-catalog"><span>Importar banco completo</span><span class="sub">430 mil · arquivo único</span></button></div>
+    <p class="sub">Acordes são salvos no aparelho. Letras são consultadas por faixa, quando disponíveis. Diagramas em afinação padrão.</p>
     <h4>Dados</h4>
     <div class="group">
-      <button class="item" id="m-export"><span>Exportar backup das cifras</span></button>
+      <button class="item" id="m-export"><span>Exportar minhas cifras e marcações</span></button>
       <button class="item" id="m-import"><span>Importar backup</span></button>
       <label class="item"><span>Modo demonstração (sem Spotify)</span><input type="checkbox" id="m-demo"></label>
     </div>
@@ -190,6 +206,7 @@
       <button class="pill" id="lib-pl">Da playlist</button>
       <button class="pill" id="lib-import">Importar arquivos</button>
     </div>
+    <p id="lib-summary" class="sub"></p>
     <div id="lib-list" class="group scroll"></div>
   </div>
 </div>
@@ -203,7 +220,7 @@
       <span class="pill ghost" aria-hidden="true">Fechar</span>
     </div>
     <p class="hint">As músicas sem cifra entram na fila de pendentes. O Spotify só libera as playlists criadas por você.</p>
-    <label class="group item"><span>Incluir músicas que só têm acordes (sem letra)</span><input type="checkbox" id="pl-chordonly" checked></label>
+    <label class="group item"><span>Listar também faixas sem letra importada</span><input type="checkbox" id="pl-chordonly"></label>
     <div id="pl-list" class="group scroll"></div>
   </div>
 </div>
@@ -221,12 +238,19 @@
   </div>
 </div>
 
-<input type="file" id="import-file" accept="application/json,.json" hidden>
-<input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,text/plain" multiple hidden>
+<div id="chord-modal" class="ov" hidden role="dialog" aria-modal="true" aria-labelledby="chord-title">
+  <div class="panel chord-panel"><div class="grab"></div><div class="ed-head"><strong id="chord-title"></strong><button id="chord-close" class="pill">Fechar</button></div><p class="sub">Afinação padrão E A D G B e · formas de acompanhamento</p><div id="chord-shape"></div><div class="shape-navigation"><button id="chord-prev" class="pill">← Anterior</button><span id="chord-position"></span><button id="chord-next" class="pill">Próxima →</button></div><p class="sub">1 indicador · 2 médio · 3 anelar · 4 mínimo<br>× não tocar · ○ corda solta</p></div>
+</div>
+<div id="import-progress" hidden role="status"><span id="import-status">Preparando importação…</span><progress id="import-meter"></progress><button id="import-cancel" class="pill">Interromper</button></div>
+<input type="file" id="import-file" accept="application/json,.json,.zip,.jsonl,.gz" hidden>
+<input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,.json,.jsonl,.gz,.zip,.lrc,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=5"></script>
-<script src="chords.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="core.js?v=6"></script>
+<script src="storage.js?v=6"></script>
+<script src="study-core.js?v=6"></script>
+<script src="catalog.js?v=6"></script>
+<script src="study.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
