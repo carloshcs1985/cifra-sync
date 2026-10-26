@@ -3,7 +3,7 @@
   'use strict';
   const C = window.CifraCore, H = window.CifraStudyCore, DB = window.CifraDB;
   const $ = s => document.querySelector(s);
-  let ctx, mode = 'sheet', lyrics = null, lyricEls = [], lyricAt = -1, currentId = '', requestId = 0, controller;
+  let ctx, mode = 'together', lyrics = null, lyricEls = [], lyricAt = -1, currentId = '', requestId = 0, controller;
   let shapePromise, shapes, selectedChord = '', selectedPosition = 0, status = '', barTicket = 0;
   const esc = C.esc;
   function shapeData() {
@@ -56,7 +56,7 @@
     if(!ctx)return;
     const ticket=++barTicket,bar=$('#chordbar');
     const items=chords();
-    if(ctx.settings().diagrams===false || mode==='chords' || !items.length){bar.hidden=true;return;}
+    if(ctx.settings().diagrams===false || mode==='chords' || mode==='together' || !items.length){bar.hidden=true;return;}
     try{
       await shapeData();if(ticket!==barTicket)return;
       bar.innerHTML=items.slice(0,32).map(ch=>`<button class="study-chord-mini" data-chord="${esc(ch)}" aria-label="Ver posições de ${esc(ch)}"><strong>${esc(ch)}</strong>${shapeSvg(ch)}</button>`).join('');bar.hidden=false;
@@ -90,6 +90,7 @@
     $('#sheet').hidden = mode !== 'sheet' || !ctx.song();
     $('#empty').hidden = mode !== 'sheet' || !!ctx.song();
     $('#lyrics-view').hidden = mode !== 'lyrics'; $('#chords-view').hidden = mode !== 'chords';
+    $('#together-view').hidden = mode !== 'together';
     $('#scroller').scrollTop = 0; ctx.resetScroll();
     if (mode === 'chords') diagrams();
     if (mode === 'lyrics') renderLyrics();
@@ -99,6 +100,7 @@
   }
   function setStatus(text) { status = text; $('#study-status').textContent = text; }
   function renderLyrics() {
+    window.CifraTogether.render(lyrics,status);
     const song = ctx.song();
     const title = (ctx.viewing?.() ? song?.title : ctx.track()?.title) || song?.title || 'Letra da música';
     const heading = `<div class="reader-heading"><span class="eyebrow">LETRA</span><h2>${esc(title)}</h2><p>${esc(status)}</p></div>`;
@@ -117,17 +119,18 @@
     if (!id) { setStatus('Escolha uma música para estudar'); renderLyrics(); return; }
     const ownLines = song && song.kind !== 'catalog' ? song.sheet.split('\n').filter(l => C.classifyLine(l) === 'lyric' && l.trim()) : [];
     setStatus('Procurando letra salva…');
+    renderLyrics();
     try {
       const cached = await DB.lyrics(id) || (song?.key ? await DB.lyrics('key:' + song.key) : null);
       if (ticket !== requestId) return;
-      if (ownLines?.length && cached?.source !== 'LRC importado') {
+      if (ownLines?.length) {
         lyrics = { plain: ownLines.join('\n'), lines: [], source:'Arquivo importado' };
-        setStatus('Letra da sua cifra · rolagem aproximada'); renderLyrics(); return;
+        setStatus('Letra da sua cifra · sem tempos de voz'); renderLyrics();
       }
       if (cached && !cached.missing) {
         lyrics = cached; setStatus(cached.lines.length ? 'Letra com tempos · '+cached.source : 'Letra sem tempos · '+cached.source); renderLyrics(); return;
       }
-      if (!track || ctx.demo() || ctx.settings().autoLyrics === false) { setStatus('Importe um LRC ou ative a consulta de letra no menu'); renderLyrics(); return; }
+      if (!track || ctx.demo() || ctx.settings().autoLyrics === false) { setStatus(ownLines.length?'Letra da sua cifra · sem tempos de voz':'Importe um LRC ou ative a consulta de letra no menu'); renderLyrics(); return; }
       if (cached?.missing && Date.now()-cached.at < 24*3600000) { setStatus('Sem letra correspondente no serviço · você pode importar um LRC'); renderLyrics(); return; }
       setStatus('Consultando letra no LRCLIB…'); renderLyrics();
       controller = new AbortController(); const ownController = controller, signal = ownController.signal;
@@ -169,6 +172,7 @@
   }
   function frame(ms, holding) {
     updateStrip(ms);
+    if (mode === 'together') return window.CifraTogether.frame(ms,holding);
     if (mode !== 'lyrics') return false;
     if (!lyrics || !lyricEls.length) return true;
     const timed = !!lyrics.lines.length;
@@ -196,6 +200,7 @@
   }
   function init(context) {
     ctx=context;
+    window.CifraTogether.init({...ctx,shapes:shapeData,svg:shapeSvg,openChord});
     document.querySelectorAll('[data-study-mode]').forEach(b => b.onclick=()=>setMode(b.dataset.studyMode));
     $('#chords-view').onclick=e=>{const b=e.target.closest('[data-chord]');if(b)openChord(b.dataset.chord);};
     $('#chordbar').onclick=e=>{const b=e.target.closest('[data-chord]');if(b)openChord(b.dataset.chord);};
@@ -210,9 +215,9 @@
     $('#m-lyric-strip').onchange=e=>{ctx.settings().showLyricStrip=e.target.checked;ctx.save();updateStrip(0);};
     $('#m-retry-lyrics').onclick=async()=>{if(currentId)await DB.lyrics(currentId,{missing:true,at:0});await loadLyrics(ctx.track(),ctx.song());};
     $('#lyrics-view').onclick=e=>{const ln=e.target.closest('[data-lyric-index]');if(ln&&lyrics?.lines.length)ctx.seek(lyrics.lines[+ln.dataset.lyricIndex].t);};
-    setMode('sheet');
+    setMode('together');
   }
-  function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
-  function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
+  function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
+  function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
   window.CifraStudy={init,frame,refresh,clear,loadLyrics,importLrc,focusChords,mode:()=>mode,setMode};
 })();

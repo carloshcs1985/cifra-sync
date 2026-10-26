@@ -44,3 +44,11 @@ Nenhuma letra de repertório comercial integra este repositório ou o catálogo 
 “My Sacrifice”, Creed: guia simplificado de acompanhamento, sem letra, solo ou riff; não representa uma transcrição integral com compassos/tempos. Referências de acordes: https://www.cifraclub.com.br/creed/my-sacrifice/ e https://www.cifras.com.br/cifra/creed/my-sacrifice . Os diagramas usam afinação padrão e não reproduzem posições alternativas da gravação.
 
 Estes avisos descrevem os componentes de terceiros; não alteram a licença do código original do aplicativo do usuário.
+
+## Complementos da versão 7
+
+Foram identificadas 293 entradas da fonte de Red Hot Chili Peppers, Nirvana e No Doubt, agrupadas pelos IDs de artista da fonte e vinculadas por ID de faixa. Destas, 144 tiveram títulos recuperados do endpoint público oficial Spotify oEmbed, sem letras ou áudio: https://developer.spotify.com/documentation/embeds/reference/oembed . As entradas integram a seleção inicial.
+
+Scar Tissue, Red Hot Chili Peppers: guia da harmonia principal, sem letra, riff, contagem integral de repetições ou tempos. Referência: https://www.cifraclub.com.br/red-hot-chili-peppers/scar-tissue/ .
+
+Smells Like Teen Spirit, Nirvana: guia do ciclo principal de power chords, sem letra, solo, arranjo integral ou tempos. Referência: https://www.cifraclub.com.br/nirvana/smells-like-teen-spirit/ . Os IDs de álbum/compilação foram conferidos em páginas públicas do Spotify. O reconhecimento também consulta artista/título e distingue versões ao vivo/acústicas.

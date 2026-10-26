@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '6';
+  const APP_VERSION = '7';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -694,7 +694,7 @@
       el.key.textContent = S.keyName ? S.keyName + (tp ? ` (${sign(tp)})` : '') : tp ? sign(tp) : 'Tom';
     } else el.key.textContent = 'Tom';
     $('#key-down').disabled = $('#key-up').disabled = !song;
-    $('#font-down').disabled = $('#font-up').disabled = !song && Study.mode() !== 'lyrics';
+    $('#font-down').disabled = $('#font-up').disabled = !song && !['lyrics','together'].includes(Study.mode());
 
     el.btnRec.hidden = mode !== 'spotify';
     el.btnRec.disabled = !syncing() || Study.mode() !== 'sheet';
@@ -993,11 +993,11 @@
     await persistQueue;
     const songs=await DB.search(q,100),count=await DB.count();
     if(ticket!==libraryTicket)return;
-    $('#lib-summary').textContent=`${count.toLocaleString('pt-BR')} cifras no aparelho · até 100 resultados por busca`;
+    $('#lib-summary').textContent=`${count.toLocaleString('pt-BR')} registros no aparelho · incluem sequências sem letra/tempos · até 100 resultados`;
     const list=$('#lib-list');
     if(!songs.length){list.innerHTML=`<div class="item sub">${q?'Nada encontrado.':'Ainda não há cifras com nome. As faixas do catálogo sem nome serão identificadas quando tocarem.'}</div>`;return;}
     list.innerHTML=songs.map(song=>{
-      const tags=[song.kind==='catalog'?'Catálogo':'Minha cifra',song.anchors?.length?'⏱ marcada':''].filter(Boolean).join(' · ');
+      const tags=[song.hasLyrics?'Letra + cifra':'Só acordes',song.chordTiming?.cues?.length?'⏱ trocas marcadas':song.anchors?.length?'⏱ trechos marcados':'sem tempos'].join(' · ');
       return `<button class="item" data-id="${esc(song.id)}"><span><span class="li-t">${esc(song.title)}</span><br><span class="sub">${esc(song.artist)}</span></span><span class="sub">${tags}</span></button>`;
     }).join('');
   }
@@ -1395,7 +1395,7 @@
     }catch(e){el.empty.innerHTML='<h2>Biblioteca indisponível</h2><p>Seus dados anteriores foram mantidos. Confira o espaço disponível e reabra o app.</p>';return;}
     applyTheme();
     measureCharRatio();
-    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
     bind();
     try{await Catalog.seed();}catch{toast('Biblioteca inicial não carregada. Suas cifras salvas continuam disponíveis.',5000);}
     try { await handleRedirect(); } catch (e) { toast('Erro no login: ' + e.message, 5000); }

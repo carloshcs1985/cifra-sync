@@ -35,6 +35,8 @@
       trackIds: [...new Set(Array.isArray(s.trackIds) ? s.trackIds.filter(x => typeof x === 'string').map(x => x.slice(0, 120)) : [])].slice(0, 20),
       anchors: (Array.isArray(s.anchors) ? s.anchors : []).filter(a => a && Number.isInteger(a.line) && a.line >= 0 && Number.isFinite(a.t) && a.t >= 0).map(a => ({ line: a.line, t: Math.round(a.t) })).slice(0, 500),
       transpose: ((((Number(s.transpose) || 0) + 5) % 12 + 12) % 12) - 5,
+      chordTiming: root.CifraPlayCore?.normalizeTiming(s.chordTiming) || null,
+      chordTimingHistory: (Array.isArray(s.chordTimingHistory)?s.chordTimingHistory:[]).slice(0,20).map(x=>root.CifraPlayCore?.normalizeTiming(x)).filter(Boolean),
       key: named ? String(s.key || '') : '', sortKey: named ? fold(artist) + '|' + fold(title) : '\uffff' + s.id,
       words: named ? [...new Set(search.split(/\s+/).filter(Boolean))] : [],
       kind: s.kind === 'catalog' ? 'catalog' : 'personal',
