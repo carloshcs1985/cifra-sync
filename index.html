@@ -13,7 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css">
+<meta name="app-version" content="3">
+<link rel="stylesheet" href="styles.css?v=3">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -144,6 +145,7 @@
       </ol>
     </details>
     <button class="btn" id="m-close">Fechar</button>
+    <p class="sub center" id="m-version"></p>
   </div>
 </div>
 
@@ -220,7 +222,7 @@
 <input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js"></script>
-<script src="app.js"></script>
+<script src="core.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

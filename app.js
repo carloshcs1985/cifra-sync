@@ -5,6 +5,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
+  const APP_VERSION = '3';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -1063,6 +1064,7 @@
     $('#m-demo').checked = S.demo;
     $('#m-lib-count').textContent = Object.keys(store.songs).length + ' salvas';
     $('#m-queue-count').textContent = store.queue.length ? store.queue.length + ' músicas' : '';
+    $('#m-version').textContent = 'Cifra Sync · versão ' + APP_VERSION;
   }
   function applyTheme() {
     document.documentElement.dataset.theme = store.settings.theme;
@@ -1316,7 +1318,20 @@
   }
 
   /* ---------- início ---------- */
+  // Se a página e o código vierem de versões diferentes (cache velho), recarrega uma vez.
+  function versionMismatch() {
+    const meta = document.querySelector('meta[name="app-version"]');
+    const pageV = meta && meta.content;
+    if (pageV === APP_VERSION) { try { sessionStorage.removeItem('cifrasync.reloaded'); } catch {} return false; }
+    let tried = false;
+    try { tried = sessionStorage.getItem('cifrasync.reloaded') === '1'; sessionStorage.setItem('cifrasync.reloaded', '1'); } catch {}
+    if (tried) return false;
+    location.reload();
+    return true;
+  }
+
   async function boot() {
+    if (versionMismatch()) return;
     applyTheme();
     measureCharRatio();
     bind();

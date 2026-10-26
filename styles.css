@@ -206,3 +206,4 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 #ov-editor { z-index: 30; }
 .qbtns .pill { background: var(--bg); }
 .qbtns .pill.primary { background: var(--accent); }
+.center { text-align: center; margin: 10px 0 0; }
