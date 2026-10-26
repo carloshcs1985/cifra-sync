@@ -186,3 +186,23 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
   .transport button { width: 38px; height: 38px; }
   #play { width: 42px; height: 42px; }
 }
+
+/* playlists e pendentes */
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+.hint b { color: var(--text); }
+.pill.ghost { visibility: hidden; }
+.item.off { opacity: .5; }
+.qrow { align-items: center; }
+.qrow.active { background: var(--cur); box-shadow: inset 3px 0 0 var(--accent); }
+.qinfo { min-width: 0; flex: 1; overflow: hidden; }
+.qinfo .li-t, .qinfo .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
+.qbtns { display: flex; gap: 6px; flex: none; }
+.qbtns .pill { padding: 8px 11px; }
+.pill.x { padding: 8px 10px; color: var(--muted); }
+.lnk { color: var(--label); font-size: 12.5px; text-decoration: underline; margin-top: 2px; display: block; }
+@media (max-width: 380px) { .qbtns .pill { padding: 7px 8px; font-size: 12px; } }
+
+/* o editor abre por cima da fila e da biblioteca */
+#ov-editor { z-index: 30; }
+.qbtns .pill { background: var(--bg); }
+.qbtns .pill.primary { background: var(--accent); }

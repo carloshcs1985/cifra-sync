@@ -90,6 +90,9 @@
     <div class="grab"></div>
     <div class="group">
       <button class="item" id="m-lib"><span>Biblioteca de cifras</span><span class="sub" id="m-lib-count"></span></button>
+      <button class="item" id="m-queue"><span>Pendentes (cifras a buscar)</span><span class="sub" id="m-queue-count"></span></button>
+      <button class="item" id="m-pl"><span>Montar fila a partir de uma playlist</span></button>
+      <button class="item" id="m-import-songs"><span>Importar arquivos de cifra (.txt, .cho)</span></button>
     </div>
 
     <h4>Rolagem</h4>
@@ -178,11 +181,43 @@
       <button class="pill primary" id="lib-new">Nova</button>
     </div>
     <input type="search" id="lib-search" placeholder="Buscar música ou artista" autocomplete="off">
+    <div class="ed-actions">
+      <button class="pill" id="lib-queue">Pendentes</button>
+      <button class="pill" id="lib-pl">Da playlist</button>
+      <button class="pill" id="lib-import">Importar arquivos</button>
+    </div>
     <div id="lib-list" class="group scroll"></div>
   </div>
 </div>
 
+<!-- Playlists -->
+<div id="ov-pl" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="pl-close">Fechar</button>
+      <strong>Escolha uma playlist</strong>
+      <span class="pill ghost" aria-hidden="true">Fechar</span>
+    </div>
+    <p class="hint">As músicas sem cifra entram na fila de pendentes. O Spotify só libera as playlists criadas por você.</p>
+    <div id="pl-list" class="group scroll"></div>
+  </div>
+</div>
+
+<!-- Pendentes -->
+<div id="ov-queue" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="q-close">Fechar</button>
+      <strong id="q-heading">Pendentes</strong>
+      <button class="pill danger" id="q-clear">Limpar</button>
+    </div>
+    <p class="hint">Toque em <b>Cifra Club</b>, selecione e copie a cifra, volte aqui e toque em <b>Colar</b>. A próxima já fica destacada.</p>
+    <div id="q-list" class="group scroll"></div>
+  </div>
+</div>
+
 <input type="file" id="import-file" accept="application/json,.json" hidden>
+<input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="core.js"></script>

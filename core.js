@@ -257,6 +257,107 @@
     return 'https://www.google.com/search?q=' + encodeURIComponent(`cifra club ${firstArtist(artist)} ${baseTitle(title)}`.trim());
   }
 
+  /* ---------- importação de arquivos ---------- */
+
+  /** ChordPro: tem diretivas {title:…}/{soc} ou acordes entre colchetes no meio da letra. */
+  function isChordPro(text) {
+    const s = String(text || '');
+    if (/^\s*\{\s*(title|t|artist|a|subtitle|st|soc|start_of_chorus|sov|start_of_verse|c|comment|ci|cb|key|new_song|ns)\s*[:}]/im.test(s)) return true;
+    let inline = 0;
+    for (const line of s.split('\n')) {
+      const m = line.match(/\[([^\]\s]+)\]/g);
+      if (!m) continue;
+      const chordy = m.filter((x) => parseChordToken(x.slice(1, -1))).length;
+      const rest = line.replace(/\[[^\]]*\]/g, '').trim();
+      if (chordy && rest) inline++;
+      if (inline >= 2) return true;
+    }
+    return false;
+  }
+
+  const CP_LABELS = {
+    soc: 'Refrão', start_of_chorus: 'Refrão', sov: '', start_of_verse: '', sob: 'Ponte', start_of_bridge: 'Ponte',
+    start_of_part: '', sop: '',
+  };
+
+  function chordProLine(line) {
+    let chords = '', lyric = '', pos = 0, any = false;
+    const re = /\[([^\]]*)\]/g;
+    let m;
+    while ((m = re.exec(line))) {
+      lyric += line.slice(pos, m.index);
+      pos = m.index + m[0].length;
+      const ch = m[1].trim();
+      if (!ch) continue;
+      any = true;
+      let col = lyric.length;
+      if (chords.length && col <= chords.length) col = chords.length + 1;
+      if (col > lyric.length) lyric += ' '.repeat(col - lyric.length);
+      chords += ' '.repeat(col - chords.length) + ch;
+    }
+    lyric += line.slice(pos);
+    if (!any) return [line];
+    return lyric.trim() ? [chords, lyric] : [chords];
+  }
+
+  /** Converte ChordPro em "acordes em cima, letra embaixo". Pode haver várias músicas ({new_song}). */
+  function chordProToSongs(text) {
+    const songs = [];
+    let cur = { title: '', artist: '', lines: [] };
+    let inTab = false;
+    const flush = () => {
+      const sheet = cleanPasted(cur.lines.join('\n'));
+      if (sheet.trim()) songs.push({ title: cur.title, artist: cur.artist, sheet });
+    };
+    for (const raw of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+      const line = raw.replace(/\s+$/, '');
+      const d = line.trim().match(/^\{\s*([\w-]+)\s*(?::\s*(.*?))?\s*\}$/);
+      if (d) {
+        const name = d[1].toLowerCase(), val = (d[2] || '').trim();
+        if (name === 'new_song' || name === 'ns') { flush(); cur = { title: '', artist: '', lines: [] }; inTab = false; }
+        else if (name === 'title' || name === 't') cur.title = val;
+        else if (name === 'artist' || name === 'a') cur.artist = val;
+        else if ((name === 'subtitle' || name === 'st') && !cur.artist) cur.artist = val;
+        else if (['c', 'comment', 'ci', 'comment_italic', 'cb', 'comment_box', 'highlight'].includes(name)) { if (val) cur.lines.push('[' + val + ']'); }
+        else if (name in CP_LABELS) { const lb = val || CP_LABELS[name]; if (lb) cur.lines.push('[' + lb + ']'); }
+        else if (name === 'sot' || name === 'start_of_tab') { inTab = true; if (val) cur.lines.push('[' + val + ']'); }
+        else if (name === 'eot' || name === 'end_of_tab') inTab = false;
+        else if (/^(eoc|end_of_chorus|eov|end_of_verse|eob|end_of_bridge|eop|end_of_part)$/.test(name)) cur.lines.push('');
+        continue; // demais diretivas (key, tempo, capo...) são ignoradas
+      }
+      if (/^\s*#/.test(line)) continue; // comentário ChordPro
+      if (inTab) { cur.lines.push(line); continue; }
+      cur.lines.push(...chordProLine(line));
+    }
+    flush();
+    return songs;
+  }
+
+  /** "Nirvana - Come As You Are.txt" → { artist: 'Nirvana', title: 'Come As You Are' } */
+  function parseFileName(name) {
+    const base = String(name || '').replace(/^.*[\\/]/, '').replace(/\.[^.]{1,8}$/, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    const i = base.indexOf(' - ');
+    if (i > 0) return { artist: base.slice(0, i).trim(), title: base.slice(i + 3).trim() };
+    return { artist: '', title: base };
+  }
+
+  /** Lê o conteúdo de um arquivo (texto já decodificado) e devolve as músicas encontradas. */
+  function parseImportFile(name, text) {
+    const fromName = parseFileName(name);
+    const body = String(text || '').replace(/^﻿/, '');
+    const isCP = /\.(cho|chopro|chordpro|crd|pro)$/i.test(name) || isChordPro(body);
+    const list = isCP ? chordProToSongs(body) : [{ title: '', artist: '', sheet: cleanPasted(body) }];
+    return list.map((s) => {
+      const sheet = s.sheet;
+      const hasChords = sheet.split('\n').some((l) => classifyLine(l) === 'chords');
+      return {
+        title: s.title || fromName.title || 'Sem título',
+        artist: s.artist || (list.length === 1 ? fromName.artist : ''),
+        sheet, hasChords,
+      };
+    });
+  }
+
   function fmtTime(ms) {
     const s = Math.max(0, Math.floor((ms || 0) / 1000));
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -266,5 +367,6 @@
     tokenize, parseChordToken, classifyLine, isTabLine, transposeNote, transposeLine, transposeSheet,
     detectKey, computeUnits, buildTimeline, positionAt, timeAt, interp, unitAt,
     lineToHtml, cleanPasted, normKey, baseTitle, fold, slug, cifraClubUrl, googleUrl, fmtTime, esc,
+    isChordPro, chordProToSongs, chordProLine, parseFileName, parseImportFile,
   };
 });

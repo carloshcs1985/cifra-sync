@@ -1,5 +1,5 @@
 /* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
-const CACHE = 'cifrasync-v1';
+const CACHE = 'cifrasync-v2';
 const ASSETS = ['./', './index.html', './styles.css', './core.js', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 

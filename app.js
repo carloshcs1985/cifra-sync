@@ -8,7 +8,7 @@
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
-  const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+  const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative';
   const REDIRECT_URI = location.origin + location.pathname.replace(/index\.html$/, '');
   const API = 'https://api.spotify.com/v1';
   const DEMO_TRACK = { id: 'demo:exemplo', title: 'Canção de Exemplo', artist: 'Cifra Sync · demonstração', duration: 100000, art: '' };
@@ -76,6 +76,7 @@
 
   const store = readJSON(STORE_KEY, null) || {};
   store.songs = store.songs && typeof store.songs === 'object' ? store.songs : {};
+  store.queue = Array.isArray(store.queue) ? store.queue : [];
   store.settings = Object.assign(
     { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false },
     store.settings || {}
@@ -141,6 +142,15 @@
     if (s) { s.trackIds.push(track.id); save(); }
     return s || null;
   }
+  function hasSongFor(trackId, key) {
+    return Object.values(store.songs).some((x) => (x.trackIds && x.trackIds.includes(trackId)) || x.key === key);
+  }
+  /** Tira da fila de pendentes tudo que já ganhou cifra. */
+  function pruneQueue() {
+    const before = store.queue.length;
+    store.queue = store.queue.filter((q) => !hasSongFor(q.trackId, q.key));
+    if (store.queue.length !== before) save();
+  }
   function resolveTrackSong() { S.trackSong = S.track ? findSongForTrack(S.track) : null; }
 
   /* ---------- Spotify: login PKCE (sem servidor, sem segredo) ---------- */
@@ -150,6 +160,7 @@
       access: j.access_token,
       refresh: j.refresh_token || (token && token.refresh),
       expiresAt: Date.now() + (j.expires_in || 3600) * 1000,
+      scope: j.scope || (token && token.scope) || '',
     };
     writeJSON(TOKEN_KEY, token);
   }
@@ -672,8 +683,8 @@
 
   function openEditor(id, opts = {}) {
     const song = id ? store.songs[id] : null;
-    const t = S.track;
-    const link = !song && !opts.noLink && t && !S.viewingId ? t.id : null;
+    const t = opts.link || S.track;
+    const link = !song && !opts.noLink && t && (opts.link || !S.viewingId) ? t.id : null;
     S.editing = { id: song ? song.id : null, linkTrackId: link };
     $('#ed-heading').textContent = song ? 'Editar cifra' : 'Nova cifra';
     $('#ed-title').value = song ? song.title : link ? C.baseTitle(t.title) : '';
@@ -698,9 +709,11 @@
       song = newSong(title, artist, text, S.editing && S.editing.linkTrackId);
     }
     save();
+    pruneQueue();
     hide('#ov-editor');
     resolveTrackSong();
     render();
+    if (!$('#ov-queue').hidden) renderQueue();
   }
 
   function deleteSong() {
@@ -719,24 +732,193 @@
     try { return await navigator.clipboard.readText(); } catch { return ''; }
   }
 
-  async function quickPaste() {
-    if (!S.track) return;
+  /** Lê a área de transferência e salva como cifra da música indicada. Devolve true se salvou direto. */
+  async function pasteFor(track) {
     const txt = C.cleanPasted(await readClipboard());
     const hasChords = txt.split('\n').some((l) => C.classifyLine(l) === 'chords');
     if (!hasChords || txt.split('\n').filter((l) => l.trim()).length < 3) {
-      openEditor(null, { text: txt });
-      toast(txt ? 'Confira o texto e toque em Salvar.' : 'Não achei texto copiado. Cole no campo abaixo.', 4000);
-      return;
+      openEditor(null, { text: txt, link: track });
+      toast(txt ? 'Não parece uma cifra. Confira e toque em Salvar.' : 'Não achei texto copiado. Cole no campo abaixo.', 4000);
+      return false;
     }
-    newSong(C.baseTitle(S.track.title), S.track.artist.split(',')[0].trim(), txt, S.track.id);
+    newSong(C.baseTitle(track.title), String(track.artist || '').split(',')[0].trim(), txt, track.id);
     save();
+    pruneQueue();
     resolveTrackSong();
     render();
-    toast('Cifra salva. Toque no lápis para revisar.');
+    return true;
+  }
+
+  async function quickPaste() {
+    if (!S.track) return;
+    if (await pasteFor(S.track)) toast('Cifra salva. Toque no lápis para revisar.');
+  }
+
+  /* ---------- fila de pendentes (a partir de playlists) ---------- */
+  const hasPlaylistScope = () => !!(token && /playlist-read-private/.test(token.scope || ''));
+  let meId = null;
+
+  async function apiAll(path, max = 2000) {
+    const out = [];
+    let next = path;
+    while (next && out.length < max) {
+      const r = await api('GET', next);
+      const b = r.body || {};
+      out.push(...(b.items || []));
+      next = b.next ? b.next.replace(API, '') : null;
+    }
+    return out;
+  }
+
+  async function openPlaylists() {
+    hide('#ov-menu');
+    hide('#ov-lib');
+    if (S.demo) { toast('Desligue o modo demonstração e conecte o Spotify.'); return; }
+    if (!token) { toast('Conecte o Spotify primeiro.'); openMenu(); return; }
+    show('#ov-pl');
+    const list = $('#pl-list');
+    if (!hasPlaylistScope()) {
+      list.innerHTML = `<div class="item col"><span>Para ler suas playlists, o Spotify precisa de uma nova autorização (uma vez só).</span>
+        <button class="btn primary" data-a="reauth">Autorizar playlists</button></div>`;
+      return;
+    }
+    list.innerHTML = '<div class="item sub">Carregando playlists…</div>';
+    try {
+      if (!meId) { const me = await api('GET', '/me'); meId = me.body && me.body.id; }
+      const pls = (await apiAll('/me/playlists?limit=50')).filter(Boolean);
+      if (!pls.length) { list.innerHTML = '<div class="item sub">Nenhuma playlist encontrada.</div>'; return; }
+      const own = (p) => !!((p.owner && p.owner.id === meId) || p.collaborative);
+      pls.sort((a, b) => own(b) - own(a));
+      list.innerHTML = pls.map((p) => {
+        const total = (p.items && p.items.total) ?? (p.tracks && p.tracks.total) ?? '';
+        const mine = own(p);
+        const who = mine ? (p.collaborative && p.owner.id !== meId ? 'colaborativa' : 'sua') : 'de ' + ((p.owner && p.owner.display_name) || 'outra pessoa');
+        return `<button class="item${mine ? '' : ' off'}" data-pl="${esc(p.id)}" data-own="${mine ? 1 : 0}" data-name="${esc(p.name || '')}">
+          <span><span class="li-t">${esc(p.name || 'Sem nome')}</span><br><span class="sub">${total !== '' ? total + ' músicas · ' : ''}${esc(who)}</span></span>
+          <span class="sub">${mine ? '›' : 'bloqueada'}</span></button>`;
+      }).join('');
+    } catch (e) {
+      list.innerHTML = `<div class="item sub warn">${esc(e.auth ? 'Sessão expirada. Conecte o Spotify de novo.' : friendlyError(e))}</div>`;
+    }
+  }
+
+  async function importPlaylist(id, name) {
+    const list = $('#pl-list');
+    list.innerHTML = `<div class="item sub">Lendo “${esc(name)}”…</div>`;
+    try {
+      const entries = await apiAll(`/playlists/${encodeURIComponent(id)}/items?limit=50&additional_types=track`);
+      let added = 0, had = 0, dup = 0;
+      const queued = new Set(store.queue.map((q) => q.trackId));
+      for (const e of entries) {
+        const t = e && (e.item || e.track);
+        if (!t || !t.id || t.is_local || (t.type && t.type !== 'track')) continue;
+        const artist = (t.artists || []).map((a) => a.name).join(', ');
+        const key = C.normKey(artist, t.name);
+        if (hasSongFor(t.id, key)) { had++; continue; }
+        if (queued.has(t.id) || store.queue.some((q) => q.key === key)) { dup++; continue; }
+        store.queue.push({ trackId: t.id, title: t.name, artist, key, playlist: name, addedAt: Date.now() });
+        queued.add(t.id);
+        added++;
+      }
+      save();
+      hide('#ov-pl');
+      openQueue();
+      const parts = [`${added} adicionada(s) à fila`];
+      if (had) parts.push(`${had} já tinham cifra`);
+      if (dup) parts.push(`${dup} já estavam na fila`);
+      toast(parts.join(' · '), 4500);
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) list.innerHTML = `<div class="item col warn">O Spotify não liberou as músicas desta playlist. Em apps pessoais ele só libera playlists criadas por você.</div>`;
+      else list.innerHTML = `<div class="item sub warn">${esc(friendlyError(e))}</div>`;
+    }
+  }
+
+  let queueActive = null; // música aberta no Cifra Club por último
+  function openQueue() { hide('#ov-menu'); hide('#ov-lib'); pruneQueue(); renderQueue(); show('#ov-queue'); }
+  function renderQueue() {
+    const n = store.queue.length;
+    $('#q-heading').textContent = n ? `Pendentes (${n})` : 'Pendentes';
+    $('#q-clear').hidden = !n;
+    const list = $('#q-list');
+    if (!n) {
+      list.innerHTML = `<div class="item col"><span class="sub">Nenhuma música pendente. Monte uma fila a partir de uma playlist sua do Spotify.</span>
+        <button class="btn primary" data-a="from-pl">Escolher playlist</button></div>`;
+      return;
+    }
+    list.innerHTML = store.queue.map((q) => `
+      <div class="item qrow${q.trackId === queueActive ? ' active' : ''}" data-q="${esc(q.trackId)}">
+        <span class="qinfo"><span class="li-t">${esc(C.baseTitle(q.title) || q.title)}</span><br><span class="sub">${esc(q.artist)}</span>
+          <button class="lnk" data-qa="google">Google</button></span>
+        <span class="qbtns">
+          <button class="pill" data-qa="cc">Cifra Club</button>
+          <button class="pill${q.trackId === queueActive ? ' primary' : ''}" data-qa="paste">Colar</button>
+          <button class="pill x" data-qa="remove" aria-label="Remover da fila">×</button>
+        </span>
+      </div>`).join('');
+    const act = list.querySelector('.qrow.active');
+    if (act) act.scrollIntoView({ block: 'nearest' });
+  }
+  async function queueAction(trackId, action) {
+    const i = store.queue.findIndex((q) => q.trackId === trackId);
+    if (i < 0) return;
+    const q = store.queue[i];
+    if (action === 'cc' || action === 'google') {
+      queueActive = trackId;
+      renderQueue();
+      openUrl(action === 'cc' ? C.cifraClubUrl(q.artist, q.title) : C.googleUrl(q.artist, q.title));
+    } else if (action === 'remove') {
+      store.queue.splice(i, 1);
+      save();
+      renderQueue();
+    } else if (action === 'paste') {
+      const ok = await pasteFor({ id: q.trackId, title: q.title, artist: q.artist });
+      if (!ok) return;
+      const next = store.queue[Math.min(i, store.queue.length - 1)];
+      queueActive = next ? next.trackId : null;
+      renderQueue();
+      toast(next ? `Salva! Próxima: ${next.title}` : 'Salva! Fila concluída.', 3000);
+    }
+  }
+
+  /* ---------- importação de vários arquivos ---------- */
+  async function decodeFile(file) {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch { return new TextDecoder('windows-1252').decode(buf); } // arquivos antigos do Windows
+  }
+  async function importFiles(files) {
+    let added = 0, exists = 0, skipped = [];
+    for (const f of files) {
+      if (f.size > 1024 * 1024) { skipped.push(f.name); continue; }
+      let parsed;
+      try { parsed = C.parseImportFile(f.name, await decodeFile(f)); } catch { skipped.push(f.name); continue; }
+      for (const s of parsed) {
+        if (!s.hasChords) { skipped.push(f.name); continue; }
+        const key = C.normKey(s.artist, s.title);
+        if (Object.values(store.songs).some((x) => x.key === key)) { exists++; continue; }
+        newSong(s.title, s.artist, s.sheet, null);
+        added++;
+      }
+    }
+    save();
+    pruneQueue();
+    resolveTrackSong();
+    render();
+    if (!$('#ov-lib').hidden) renderLib();
+    const parts = [`${added} cifra(s) importada(s)`];
+    if (exists) parts.push(`${exists} já existiam`);
+    if (skipped.length) parts.push(`${skipped.length} sem acordes: ${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}`);
+    toast(parts.join(' · '), 6000);
   }
 
   /* ---------- biblioteca ---------- */
-  function openLib() { $('#lib-search').value = ''; renderLib(); show('#ov-lib'); }
+  function openLib() {
+    $('#lib-search').value = '';
+    pruneQueue();
+    $('#lib-queue').textContent = store.queue.length ? `Pendentes (${store.queue.length})` : 'Pendentes';
+    renderLib();
+    show('#ov-lib');
+  }
   function renderLib() {
     const q = C.fold($('#lib-search').value).trim();
     const songs = Object.values(store.songs)
@@ -760,6 +942,7 @@
     else if (S.track && !S.trackSong && !S.demo && confirm(`Usar esta cifra sempre que tocar “${S.track.title}”?`)) {
       s.trackIds.push(S.track.id);
       save();
+      pruneQueue();
       resolveTrackSong();
       S.viewingId = null;
     } else S.viewingId = id;
@@ -771,7 +954,7 @@
 
   /* ---------- backup ---------- */
   async function exportBackup() {
-    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: store.songs }, null, 2);
+    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: store.songs, queue: store.queue }, null, 2);
     const name = `cifra-sync-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([json], name, { type: 'application/json' });
     try {
@@ -806,7 +989,17 @@
         const cur = store.songs[s.id];
         if (!cur || s.updatedAt > (cur.updatedAt || 0)) { store.songs[s.id] = s; n++; }
       }
+      if (Array.isArray(data.queue)) {
+        const have = new Set(store.queue.map((q) => q.trackId));
+        for (const q of data.queue.slice(0, 5000)) {
+          if (!q || typeof q.trackId !== 'string' || have.has(q.trackId)) continue;
+          const title = String(q.title || '').slice(0, 200), artist = String(q.artist || '').slice(0, 300);
+          store.queue.push({ trackId: q.trackId.slice(0, 120), title, artist, key: C.normKey(artist, title), playlist: String(q.playlist || '').slice(0, 200), addedAt: +q.addedAt || Date.now() });
+          have.add(q.trackId);
+        }
+      }
       save();
+      pruneQueue();
       resolveTrackSong();
       render();
       toast(`${n} cifra(s) importada(s).`);
@@ -869,6 +1062,7 @@
     $('#m-connect-label').textContent = token ? 'Desconectar do Spotify' : 'Conectar ao Spotify';
     $('#m-demo').checked = S.demo;
     $('#m-lib-count').textContent = Object.keys(store.songs).length + ' salvas';
+    $('#m-queue-count').textContent = store.queue.length ? store.queue.length + ' músicas' : '';
   }
   function applyTheme() {
     document.documentElement.dataset.theme = store.settings.theme;
@@ -996,6 +1190,44 @@
     $('#lib-new').addEventListener('click', () => { hide('#ov-lib'); openEditor(null, { noLink: true }); });
     $('#lib-search').addEventListener('input', renderLib);
     $('#lib-list').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) pickSong(b.dataset.id); });
+    $('#lib-import').addEventListener('click', () => $('#import-songs').click());
+    $('#lib-pl').addEventListener('click', openPlaylists);
+    $('#lib-queue').addEventListener('click', openQueue);
+
+    // lote: arquivos, playlists e pendentes
+    $('#import-songs').addEventListener('change', (e) => {
+      const fs = [...(e.target.files || [])];
+      e.target.value = '';
+      if (fs.length) importFiles(fs);
+    });
+    $('#m-queue').addEventListener('click', openQueue);
+    $('#m-pl').addEventListener('click', openPlaylists);
+    $('#m-import-songs').addEventListener('click', () => { hide('#ov-menu'); $('#import-songs').click(); });
+    $('#pl-close').addEventListener('click', () => hide('#ov-pl'));
+    $('#pl-list').addEventListener('click', (e) => {
+      if (e.target.closest('[data-a="reauth"]')) { login(); return; }
+      const b = e.target.closest('[data-pl]');
+      if (!b) return;
+      if (b.dataset.own !== '1') {
+        toast('O Spotify só libera playlists criadas por você. No Spotify: ⋯ na playlist → Adicionar a outra playlist → Nova playlist.', 7000);
+        return;
+      }
+      importPlaylist(b.dataset.pl, b.dataset.name);
+    });
+    $('#q-close').addEventListener('click', () => hide('#ov-queue'));
+    $('#q-clear').addEventListener('click', () => {
+      if (!confirm('Limpar toda a fila de pendentes?')) return;
+      store.queue = [];
+      queueActive = null;
+      save();
+      renderQueue();
+    });
+    $('#q-list').addEventListener('click', (e) => {
+      if (e.target.closest('[data-a="from-pl"]')) { hide('#ov-queue'); openPlaylists(); return; }
+      const b = e.target.closest('[data-qa]');
+      const row = e.target.closest('[data-q]');
+      if (b && row) queueAction(row.dataset.q, b.dataset.qa);
+    });
 
     // menu
     $('#ov-menu').addEventListener('click', (e) => { if (e.target.id === 'ov-menu') hide('#ov-menu'); });
