@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0e0d0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cifra Sync">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<title>Cifra Sync</title>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <img id="art" alt="" hidden>
+    <div id="art-ph" aria-hidden="true">♪</div>
+    <div class="meta">
+      <div id="title">Cifra Sync</div>
+      <div id="artist">Cifras que rolam junto com o Spotify</div>
+    </div>
+    <span id="conn" class="dot" title="Spotify"></span>
+    <button id="btn-edit" class="icon" aria-label="Editar cifra"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"/></svg></button>
+    <button id="btn-menu" class="icon" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <div class="stage">
+    <main id="scroller">
+      <div id="sheet" hidden></div>
+      <div id="empty" hidden></div>
+    </main>
+    <button id="resume" class="float" hidden>↧ Voltar a acompanhar</button>
+    <div id="fixed-pill" class="float" hidden>
+      <button data-f="slower" aria-label="Mais devagar">−</button>
+      <button id="fixed-toggle" aria-label="Iniciar ou parar a rolagem">
+        <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+      </button>
+      <span id="fixed-speed"></span>
+      <button data-f="faster" aria-label="Mais rápido">+</button>
+    </div>
+    <div id="rec-bar" class="float" hidden>
+      <span>● Toque em cada linha quando ela começar</span>
+      <button class="pill" id="rec-undo">Desfazer</button>
+      <button class="pill primary" id="rec-done">Concluir</button>
+    </div>
+  </div>
+
+  <footer id="dock">
+    <div id="progress" aria-label="Posição na música"><div class="bar"><div id="progress-fill"></div></div></div>
+    <div class="row">
+      <span id="time" class="time">0:00</span>
+      <div class="transport">
+        <button data-c="prev" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button data-c="back10" aria-label="Voltar 10 segundos"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg></button>
+        <button data-c="toggle" id="play" aria-label="Tocar ou pausar">
+          <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+        </button>
+        <button data-c="next" aria-label="Próxima"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      </div>
+      <span id="dur" class="time right">0:00</span>
+    </div>
+    <div class="row tools">
+      <div class="seg" title="Transpor tom">
+        <button id="key-down" aria-label="Baixar meio tom">−</button>
+        <span id="key">Tom</span>
+        <button id="key-up" aria-label="Subir meio tom">+</button>
+      </div>
+      <div class="seg" title="Tamanho da letra">
+        <button id="font-down" aria-label="Diminuir letra">A−</button>
+        <button id="font-up" aria-label="Aumentar letra">A+</button>
+      </div>
+      <button id="btn-rec" class="pill">● Marcar</button>
+    </div>
+  </footer>
+</div>
+
+<!-- Menu -->
+<div id="ov-menu" class="ov" hidden>
+  <div class="panel">
+    <div class="grab"></div>
+    <div class="group">
+      <button class="item" id="m-lib"><span>Biblioteca de cifras</span><span class="sub" id="m-lib-count"></span></button>
+    </div>
+
+    <h4>Rolagem</h4>
+    <div class="group">
+      <div class="item"><div class="opts">
+        <button class="opt" data-mode="spotify">Seguir o Spotify</button>
+        <button class="opt" data-mode="fixed">Velocidade fixa</button>
+      </div></div>
+      <div class="item" id="m-speed-row"><span>Velocidade</span><input type="range" id="m-speed" min="5" max="150" step="5"><span class="sub num" id="m-speed-val"></span></div>
+      <button class="item" id="m-clear-anchors"><span>Apagar marcações de tempo desta música</span></button>
+    </div>
+
+    <h4>Exibição</h4>
+    <div class="group">
+      <label class="item"><span>Ajustar a cifra à largura da tela</span><input type="checkbox" id="m-fit"></label>
+      <label class="item"><span>Tema claro</span><input type="checkbox" id="m-light"></label>
+    </div>
+
+    <h4>Spotify</h4>
+    <div class="group">
+      <div class="item col">
+        <span>Client ID do seu app no painel do Spotify</span>
+        <input type="text" id="m-client" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="cole o Client ID aqui">
+      </div>
+      <div class="item col">
+        <span>Redirect URI — cadastre exatamente este endereço no painel do Spotify</span>
+        <div class="copyrow"><code id="m-redirect"></code><button class="pill" id="m-copy">Copiar</button></div>
+      </div>
+      <button class="item" id="m-connect"><span id="m-connect-label">Conectar ao Spotify</span></button>
+    </div>
+
+    <h4>Dados</h4>
+    <div class="group">
+      <button class="item" id="m-export"><span>Exportar backup das cifras</span></button>
+      <button class="item" id="m-import"><span>Importar backup</span></button>
+      <label class="item"><span>Modo demonstração (sem Spotify)</span><input type="checkbox" id="m-demo"></label>
+    </div>
+
+    <details class="help">
+      <summary>Como usar</summary>
+      <ol>
+        <li>Dê play no Spotify (neste iPhone, no computador ou em outro aparelho). A música aparece aqui sozinha.</li>
+        <li>Sem cifra salva? Toque em <b>Abrir no Cifra Club</b>, selecione e copie a cifra, volte e toque em <b>Colar cifra copiada</b>. Ela fica salva para as próximas vezes.</li>
+        <li>A rolagem acompanha a música. Para ficar exata, toque em <b>● Marcar</b> e, com a música tocando, toque em cada linha no momento em que ela começa. Marcar o início de cada parte já basta.</li>
+        <li>Toque duas vezes numa linha para o Spotify voltar até ela. Bom para repetir um trecho.</li>
+        <li>Arrastar a cifra pausa a rolagem por alguns segundos.</li>
+        <li>Tom −/+ transpõe os acordes; A−/A+ muda o tamanho. Com o celular deitado a letra fica maior.</li>
+        <li>Pedal Bluetooth de virar página funciona (setas e espaço).</li>
+      </ol>
+    </details>
+    <button class="btn" id="m-close">Fechar</button>
+  </div>
+</div>
+
+<!-- Editor -->
+<div id="ov-editor" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="ed-cancel">Cancelar</button>
+      <strong id="ed-heading">Cifra</strong>
+      <button class="pill primary" id="ed-save">Salvar</button>
+    </div>
+    <div class="ed-fields">
+      <input type="text" id="ed-title" placeholder="Música" autocomplete="off">
+      <input type="text" id="ed-artist" placeholder="Artista" autocomplete="off">
+    </div>
+    <div class="ed-actions">
+      <button class="pill" id="ed-paste">Colar</button>
+      <button class="pill" id="ed-cc">Abrir no Cifra Club</button>
+      <button class="pill" id="ed-google">Buscar no Google</button>
+    </div>
+    <textarea id="ed-text" wrap="off" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="Cole aqui a cifra (acordes em cima, letra embaixo)…"></textarea>
+    <div class="ed-foot">
+      <button class="pill danger" id="ed-delete">Excluir</button>
+      <span class="sub" id="ed-link"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Biblioteca -->
+<div id="ov-lib" class="ov" hidden>
+  <div class="panel full">
+    <div class="ed-head">
+      <button class="pill" id="lib-close">Fechar</button>
+      <strong>Biblioteca</strong>
+      <button class="pill primary" id="lib-new">Nova</button>
+    </div>
+    <input type="search" id="lib-search" placeholder="Buscar música ou artista" autocomplete="off">
+    <div id="lib-list" class="group scroll"></div>
+  </div>
+</div>
+
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
