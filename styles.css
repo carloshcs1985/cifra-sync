@@ -316,3 +316,32 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 #chart-status {font-size:11px;color:var(--chord);margin-top:5px;overflow-wrap:anywhere;}
 .chart-credit {display:block;color:var(--muted);font-size:11px;margin:0 0 12px;}
 .together-heading .pill {margin-right:7px;font-size:12px;}
+
+/* Faixa compacta: formas ausentes não aumentam a altura da leitura. */
+#chordbar {height:96px;max-height:96px;padding:4px 10px;gap:8px;}
+.chordbar-now {flex-basis:80px;min-width:0;}
+.chordbar-now strong {font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chordbar-now span {font-size:9px;}
+.study-chord-mini {width:68px;height:86px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;padding:3px;}
+.study-chord-mini strong {font-size:13px;}
+.study-chord-mini svg {width:54px;height:62px;flex:none;}
+.study-chord-mini .diagram-unavailable {display:flex;align-items:center;justify-content:center;min-height:0;height:62px;padding:0;margin:0;font-size:10px;line-height:1.2;}
+@media(max-height:500px){#chordbar{height:78px;max-height:78px;padding:2px 10px;}.study-chord-mini{width:58px;height:72px;}.study-chord-mini svg{width:44px;height:50px;}.study-chord-mini .diagram-unavailable{height:50px;}.chordbar-now{flex-basis:80px;}}
+.study-tabs {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;overflow-x:auto;scrollbar-width:none;}
+.study-tabs button {white-space:nowrap;font-size:clamp(11px,3.3vw,14px);padding-inline:3px;letter-spacing:-.02em;}
+@media(min-width:800px){.study-tabs{max-width:560px;}}
+.instrument-picker {display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;margin-top:7px;}
+.instrument-picker select {font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:4px;max-width:70%;}
+#tabs-view {padding:20px 16px 65vh;max-width:960px;margin:auto;}
+.tab-actions {display:flex;gap:8px;flex-wrap:wrap;}
+#tab-message,.tab-empty,.tab-guide {font-size:13px;line-height:1.65;color:var(--muted);}
+.tab-guide {background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;}
+.tab-guide summary {font-weight:700;color:var(--text);cursor:pointer;}.tab-guide code{font:14px var(--mono);color:var(--chord);}
+.tab-legend {display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}.tab-legend b{display:block;color:var(--chord);}
+.tab-library {display:grid;gap:8px;margin:20px 0;}.tab-library label{font-size:13px;font-weight:650;}
+.tab-library input,.tab-library select{min-width:0;width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;color:var(--text);background:var(--surface);}
+.tab-score h3{margin-bottom:4px;}.tab-score .sub{margin-top:0;}.tab-follow{font-size:12px;display:flex;align-items:center;gap:6px;margin:12px 0;}
+.tab-block{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;margin:14px 0;padding:12px 10px;background:var(--surface);}
+.tab-block.active{border-left-color:var(--accent);background:var(--cur);}.tab-block-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
+.tab-block pre{font:calc(14px * var(--study-scale,1))/1.65 var(--mono);font-variant-ligatures:none;white-space:pre;overflow-x:auto;margin:14px 0 0;padding-bottom:5px;color:var(--text);}
+@media(max-height:500px){.instrument-picker{margin-top:3px;}.instrument-picker select{padding:1px;}}
