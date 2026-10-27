@@ -39,3 +39,15 @@ O laboratório prefere guitarra principal/lead e base/rhythm a pistas de fundo, 
 Se houver pausas no início, uma prévia mostra o primeiro compasso com notas e o botão **Ir à primeira entrada**. Os compassos de introdução e sua numeração são preservados: retirar pausas alteraria a referência de tempo. A escolha manual do instrumento continua sendo respeitada, inclusive para uma pista esparsa.
 
 Casos de referência observados na fonte: em Thunderstruck, a guitarra principal começa no compasso 1, enquanto a de fundo começa no 54; em Bring Me to Life, a guitarra principal entra no compasso 9. Os testes simulados verificam preferência por lead, primeira versão vazia seguida de outra utilizável, prévia de entrada, notas de casa zero e cobertura de compassos. Conteúdo das músicas não integra os testes nem o repositório.
+
+## Letra junto da tablatura
+
+Com Spotify conectado e artista/título base correspondentes à tablatura, a letra é consultada no [LRCLIB](https://lrclib.net/docs) usando título da gravação, artista, álbum e duração. A frase atual e a próxima acompanham o relógio de reprodução, inclusive pausa e mudança de posição. A busca não usa a versão genérica da tablatura como identidade da gravação. A seleção automática de guitarra e versões continua independente.
+
+Ao marcar **Este compasso começa agora**, os trechos são distribuídos abaixo dos compassos pela mesma estimativa de tempo da rolagem. Uma segunda marcação recalcula a distribuição; apagar marcas ou mudar a velocidade retira esse posicionamento até nova marcação. **Não há alinhamento exato entre sílabas e notas.** Introduções, repetições e diferenças de arranjo podem exigir ajustes. Antes da primeira marcação, a frase atual e a próxima servem como referência para localizar a entrada.
+
+Somente letras com título de versão compatível e duração até dois segundos da gravação recebem acompanhamento por tempo. Se houver apenas texto ou uma versão/duração diferente, a letra fica recolhida em **Letra de referência · sem tempos compatíveis**, sem associação inventada aos compassos. Sem resultado, o leitor de tablatura continua funcionando. Disponibilidade e qualidade da letra dependem da fonte.
+
+Uma consulta por gravação durante a sessão, cache em memória limitado a 20 resultados por 10 minutos, requisições sequenciais, identificação do cliente, pausa entre busca exata e alternativa, timeout e respeito a HTTP 429/Retry-After. Não envia token/cookies Spotify ao LRCLIB. Respostas de gravações anteriores são canceladas e descartadas; desconectar remove a letra da tela. Nenhuma letra é incluída no repositório ou persistida no armazenamento do aplicativo.
+
+Testes: LRC com vários timestamps, lacunas instrumentais e offset; distribuição após uma/duas marcas; rejeição de artista incorreto e de tempos de outra versão/duração; cache, cancelamento e limite da fonte. Navegador: frase atual/próxima, pausa, letra abaixo dos compassos após marcar, remoção das posições ao trocar pista e isolamento de credenciais. O modo de fonte real também verifica acesso direto ao LRCLIB com CORS no navegador para Wake Me Up When September Ends, sem salvar sua letra no repositório.
