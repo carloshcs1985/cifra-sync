@@ -1,8 +1,18 @@
-# Cifra Sync · Estudo 8
+# Cifra Sync · Estudo 9
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
 
-## Cifra com letra na versão 8
+## Rolagem e diagramas na versão 9
+
+Mantém a estrutura estática da versão 8 no GitHub Pages, sem servidor adicional, assinatura ou chave de API paga. A consulta individual de cifras/letras continua dependendo da disponibilidade dos serviços públicos já usados.
+
+**Cifras** e **Juntos** mostram a mesma barra superior de diagramas, fixa acima da área de leitura. Um único acorde fica em destaque; tocar no diagrama abre as posições alternativas. A barra acompanha pausa, avanço, retorno e transposição.
+
+A rolagem de Cifras recalcula a altura das linhas ao entrar na aba e após mudanças de tamanho/fonte. As duas abas compartilham as correspondências entre a cifra e as frases do LRC. Sem correspondência, a estrutura da cifra fornece uma aproximação da posição.
+
+O destaque informa **Marcação salva**, **Estimado pela frase** ou **Estimado pela estrutura**. Frases com LRC permitem estimar as trocas pelas colunas dos acordes, mas não fornecem tempos exatos de cada acorde. As marcações pessoais por ocorrência têm prioridade; as demais trocas continuam como guia estimado. Sem reprodução vinculada, os diagramas permanecem disponíveis para consulta.
+
+## Cifra com letra da versão 8
 
 O app consulta individualmente a cifra pública correspondente à faixa e salva uma nova versão no aparelho, com letra e acordes nas posições fornecidas pela página. A consulta usa Cifra Club por meio do Jina Reader, sem enviar autorização do Spotify ou cookies. Não há download em massa nem letras de terceiros no repositório.
 
@@ -10,23 +20,23 @@ A opção **Buscar cifra com letra automaticamente** fica em **Menu → Estudo e
 
 Na primeira consulta é necessária internet. Depois de salva, a cifra é lida do IndexedDB e entra no backup pessoal. A disponibilidade depende das páginas e do serviço externo. Título, artista e tipo de versão são conferidos; uma página de outra música não é vinculada à faixa. Se não for possível consultar, a letra e os acordes que já estavam no aparelho continuam disponíveis.
 
-A aba Juntos prioriza as linhas da própria cifra, preservando os acordes sobre as palavras. O texto com LRC pode ter quebras de linha diferentes: o leitor encontra correspondências de uma ou mais frases e destaca o grupo correspondente. Linhas que não correspondem não recebem tempos inventados. Os quadros vazios de acorde atual/próximo foram removidos quando não existem marcações de trocas.
+A aba Juntos prioriza as linhas da própria cifra, preservando os acordes sobre as palavras. O texto com LRC pode ter quebras de linha diferentes: o leitor encontra correspondências de uma ou mais frases e destaca o grupo correspondente. Na versão 9, linhas sem correspondência usam o guia estrutural, identificado como estimativa. Os quadros vazios de acorde atual/próximo foram removidos quando não existem marcações de trocas.
 
 O alinhamento visual da cifra e o acompanhamento por frases não fornecem o instante exato de cada acorde dentro de uma frase. As marcações por acorde da versão 7 continuam disponíveis para esse ajuste.
 
 ## Leitura conjunta e marcações
 
-A aba **Juntos** exibe a letra inteira, o acorde atual, o próximo e o diagrama. O acorde só é destacado quando existe um tempo salvo para aquela ocorrência: não é calculado dividindo a duração da música pelo número de acordes.
+A aba **Juntos** exibe a letra inteira e os diagramas dos acordes. O destaque usa marcações salvas ou um guia identificado como estimativa. O quadro adicional de acorde atual/próximo aparece quando há marcações pessoais.
 
 Cifras pessoais com acordes sobre as palavras mantêm suas colunas. Quando o texto corresponde à letra com LRC, a frase acompanha o Spotify. Tempos de frase não informam o instante de cada troca dentro dela.
 
 **Sincronizar trocas** registra os acordes com um toque no instante em que você os ouve. Você pode selecionar a ocorrência, desfazer e retomar. As marcações ficam no aparelho e no backup pessoal; transpor preserva os tempos. Outro ID de gravação, duração incompatível ou mudança na sequência de acordes impede o uso automático das marcações antigas.
 
-Os **430.324 registros não são 430.324 cifras completas**. O banco contém acordes/estrutura, sem letras e sem tempos de troca. Para acompanhar cada acorde automaticamente sem marcação pessoal, ainda é necessária uma fonte com tempos por acorde para a gravação exata. Essa fonte não integra esta versão. A diferença entre letra com tempos e acordes sem tempos aparece na interface.
+Os **430.324 registros não são 430.324 cifras completas**. O banco contém acordes/estrutura, sem letras e sem tempos de troca. Para acompanhar cada acorde com precisão sem marcação pessoal, ainda é necessária uma fonte com tempos por acorde para a gravação exata. Essa fonte não integra esta versão. O guia automático da versão 9 é uma estimativa claramente identificada na interface.
 
 A seleção inicial foi ampliada com as 293 entradas aproveitáveis de Red Hot Chili Peppers, Nirvana e No Doubt identificadas na fonte. **Scar Tissue** e **Smells Like Teen Spirit** foram acrescentadas como **guias simplificados da harmonia principal**, sem letra embutida, tempos ou arranjo integral. Elas não devem ser confundidas com cifras completas.
 
-A seleção inicial se atualiza ao abrir a versão 7 e preserva as edições pessoais. O arquivo grande de importação continua sendo o mesmo.
+A seleção inicial se atualiza ao abrir o app e preserva as edições pessoais. O arquivo grande de importação continua sendo o mesmo.
 
 ## Recursos da biblioteca
 
@@ -45,7 +55,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 8**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 9**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 

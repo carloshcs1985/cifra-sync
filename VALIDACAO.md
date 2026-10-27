@@ -1,3 +1,17 @@
+# Validação da versão 9
+
+- Dezesseis testes Node aprovados: `node --test tests/*.test.cjs`. Cobrem marcações por ocorrência, guia por frase/estrutura, prioridade das marcações, transposição sem deslocar tempos, retorno e frases divididas em mais de uma linha.
+- Chromium com Spotify e LRCLIB simulados e frases originais: barra com quatro diagramas e exatamente um acorde atual em Cifras e Juntos; indicação de estimativa por frase e de marcação salva.
+- Mudança de fonte e largura enquanto Cifras estava escondida, seguida de entrada na aba: alturas recalculadas e rolagem até o trecho correto. Alternar para Juntos conserva o acorde e localiza a frase visível.
+- Pausa mantém o acorde; retorno do Spotify volta a leitura e o destaque; rolagem manual mantém temporariamente a posição. Transposição preserva os tempos salvos. Posições alternativas continuam acessíveis.
+- Verificação visual em 390/412 px e leitura em paisagem 844 × 390, sem excesso horizontal no documento.
+- Regressões de importação TXT/gzip/ZIP/LRC, migração, backup, versões pessoais, gravador de trocas, reconhecimento, consulta de cifra e cache aprovadas. Nenhuma exceção de página nos fluxos testados.
+- Nenhum servidor ou configuração de API paga foi acrescentado. Mantida a publicação estática no GitHub Pages.
+
+A conta real do Spotify e o iPhone não foram operados. O destaque sem marcação por acorde é um guia estimado, identificado na interface; tempos de frase não garantem a troca exata de cada acorde.
+
+## Histórico
+
 # Validação da versão 8
 
 - Treze testes Node aprovados: `node --test tests/*.test.cjs`.
