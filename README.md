@@ -128,3 +128,6 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
 Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `chart-source.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
+
+### Ajustar a rolagem durante a música
+Nas abas Cifra e Juntos, toque em **Ajustar rolagem** e depois na frase que está ouvindo. A reprodução continua, a posição é salva na cifra deste aparelho e o acompanhamento segue dali. Se precisar, repita em outro trecho. Os pontos substituem a estimativa por letra; o intervalo entre eles continua estimado. Use Desfazer ou apague as marcações pelo menu.

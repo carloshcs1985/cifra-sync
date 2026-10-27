@@ -66,3 +66,12 @@ test('split source rows share a phrase interval and keep chord occurrence order'
  assert(plan.events[2].t>plan.events[1].t);assert.equal(plan.events[4].t,20000);
  assert(plan.events.every((e,i)=>!i||e.t>=plan.events[i-1].t));
 });
+
+test('manual phrase alignment overrides stale LRC positions and continues after the selected phrase',()=>{
+ const sheet='[Intro]\nE|--0--|\nB|--0--|\nG|--0--|\nD|--0--|\nA|--0--|\nE|--0--|\nC\nPrimeira frase original\nG\nSegunda frase original\nAm\nTerceira frase original';
+ const song={sheet,kind:'personal',anchors:[{line:8,t:30000}]};
+ const plan=P.playbackPlan(song,{id:'track',duration:90000},{lines:[{text:'Primeira frase original',t:60000},{text:'Segunda frase original',t:70000},{text:'Terceira frase original',t:80000}]},C);
+ const now=P.playbackAt(plan,30000,C),later=P.playbackAt(plan,75000,C);
+ assert.equal(now.line,8);assert.deepEqual(now.rows,[plan.rows.findIndex(r=>r.line===8)]);assert.equal(now.current.chord,'C');assert(later.line>now.line);
+ assert(P.playbackAt(plan,1000,C).line<8);
+});
