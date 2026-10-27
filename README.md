@@ -1,8 +1,20 @@
-# Cifra Sync · Estudo 7
+# Cifra Sync · Estudo 8
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
 
-## Leitura conjunta na versão 7
+## Cifra com letra na versão 8
+
+O app consulta individualmente a cifra pública correspondente à faixa e salva uma nova versão no aparelho, com letra e acordes nas posições fornecidas pela página. A consulta usa Cifra Club por meio do Jina Reader, sem enviar autorização do Spotify ou cookies. Não há download em massa nem letras de terceiros no repositório.
+
+A opção **Buscar cifra com letra automaticamente** fica em **Menu → Estudo e letras**. Cifras pessoais são preservadas. Quando você já tem uma cifra pessoal só com acordes, o botão **Buscar cifra com letra**, na aba **Juntos**, cria outra versão sem apagar a anterior.
+
+Na primeira consulta é necessária internet. Depois de salva, a cifra é lida do IndexedDB e entra no backup pessoal. A disponibilidade depende das páginas e do serviço externo. Título, artista e tipo de versão são conferidos; uma página de outra música não é vinculada à faixa. Se não for possível consultar, a letra e os acordes que já estavam no aparelho continuam disponíveis.
+
+A aba Juntos prioriza as linhas da própria cifra, preservando os acordes sobre as palavras. O texto com LRC pode ter quebras de linha diferentes: o leitor encontra correspondências de uma ou mais frases e destaca o grupo correspondente. Linhas que não correspondem não recebem tempos inventados. Os quadros vazios de acorde atual/próximo foram removidos quando não existem marcações de trocas.
+
+O alinhamento visual da cifra e o acompanhamento por frases não fornecem o instante exato de cada acorde dentro de uma frase. As marcações por acorde da versão 7 continuam disponíveis para esse ajuste.
+
+## Leitura conjunta e marcações
 
 A aba **Juntos** exibe a letra inteira, o acorde atual, o próximo e o diagrama. O acorde só é destacado quando existe um tempo salvo para aquela ocorrência: não é calculado dividindo a duração da música pelo número de acordes.
 
@@ -33,7 +45,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 7**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 8**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 
@@ -83,4 +95,4 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
-Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
+Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `chart-source.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.

@@ -3,7 +3,7 @@
   'use strict';
   const C=window.CifraCore,H=window.CifraStudyCore,P=window.CifraPlayCore;
   const $=s=>document.querySelector(s),esc=C.esc;
-  let ctx,lyrics,status='',cues=[],rows=[],cueAt=-2,lineAt=-2,items=[],selected=0,editingSong='',undo=[];
+  let ctx,lyrics,status='',cues=[],rows=[],rowLinks=[],cueAt=-2,lineAt=-2,items=[],selected=0,editingSong='',undo=[];
   const activeTrack=()=>ctx.viewing()?null:ctx.track();
   const stamp=t=>C.fmtTime(t)+'.'+String(Math.floor(t%1000/10)).padStart(2,'0');
   function cueButton(cue) { return '<button class="timed-chord" data-cue-time="'+cue.t+'" data-event="'+cue.event+'" aria-label="'+esc(cue.chord)+' em '+stamp(cue.t)+'">'+esc(cue.chord)+'<small>'+stamp(cue.t)+'</small></button>'; }
@@ -11,7 +11,7 @@
     let out='',at=0;
     for(const token of C.tokenize(block.chords)){
       out+=esc(block.chords.slice(at,token.index));
-      const event=events.find(x=>x.line===block.line-1 && x.column===token.index);
+      const event=events.find(x=>x.line===(block.chordLine??block.line-1) && x.column===token.index);
       out+=event?'<button class="aligned-hit" data-aligned-chord="'+esc(event.chord)+'" data-event="'+event.event+'">'+esc(token.text)+'</button>':esc(token.text);
       at=token.index+token.text.length;
     }
@@ -25,21 +25,27 @@
     if(editingSong && editingSong!==song?.id)closeSync();
     const count=P.events(song?.sheet,C).length,title=(ctx.viewing()?song?.title:track?.title)||song?.title||'Tocar junto';
     const canSync=!!song && !!track;
-    const info=cues.length ? cues.length+' de '+count+' trocas com tempo salvo' : song?'Acordes sem tempos de troca':'Ainda sem cifra para esta faixa';
-    $('#study-status').textContent=status+(song?' · '+(cues.length?cues.length+' trocas marcadas':'acordes sem tempos'):'');
+    const displayText=song?C.transposeSheet(song.sheet,song.transpose||0).text:'';
+    const fullRows=song?.kind!=='catalog'?P.chartRows(displayText,C):[];
+    const full=fullRows.some(b=>b.chords);
+    const info=cues.length ? cues.length+' de '+count+' trocas com tempo salvo' : full?'Cifra com letra e acordes alinhados':song?'Acordes sem letra alinhada':'Buscando cifra para esta faixa';
+    $('#study-status').textContent=status+(song?' · '+(cues.length?cues.length+' trocas marcadas':full?'cifra com letra':'só acordes'):'');
     let html='<div class="together-heading"><span class="eyebrow">LETRA + ACORDES</span><h2>'+esc(title)+'</h2><p>'+esc(info)+'</p>';
-    if(canSync)html+='<button class="pill primary" data-together="sync">'+(cues.length?'Ajustar trocas':'Sincronizar trocas')+'</button>';
+    if(song?.sourceUrl&&window.CifraChartSource.sourceUrl(song.sourceUrl))html+='<a class="chart-credit" href="'+esc(song.sourceUrl)+'" target="_blank" rel="noopener noreferrer">Cifra Club · cifra com letra salva neste aparelho</a>';
+    if(!full&&track)html+='<button class="pill primary" data-together="lookup">Buscar cifra com letra</button>';
+    if(canSync)html+='<button class="pill'+(full?'':' primary')+'" data-together="sync">'+(cues.length?'Ajustar trocas':'Sincronizar trocas')+'</button>';
     html+='</div>';
-    if(song)html+='<div class="cue-live" aria-label="Acorde atual e próximo"><button id="cue-current" class="cue-current" disabled><small>ACORDE ATUAL</small><strong>—</strong></button><div class="cue-next"><small>PRÓXIMO</small><strong id="cue-next">'+esc(cues[0]?.chord||'—')+'</strong><span id="cue-clock">'+(cues.length?'Aguardando a primeira marcação':'Marque as trocas uma vez para acompanhar nas próximas sessões')+'</span></div><div id="cue-diagram"></div></div>';
-    if(song && !cues.length)html+='<p class="sync-explanation">A letra pode acompanhar a voz. Os acordes desta cifra ainda precisam dos tempos de cada troca.</p>';
-    const lines=lyrics?.lines?.length?lyrics.lines:(lyrics?.plain||'').split('\n').filter(Boolean).map(text=>({text}));
+    if(song&&cues.length)html+='<div class="cue-live" aria-label="Acorde atual e próximo"><button id="cue-current" class="cue-current" disabled><small>ACORDE ATUAL</small><strong>—</strong></button><div class="cue-next"><small>PRÓXIMO</small><strong id="cue-next">'+esc(cues[0]?.chord||'—')+'</strong><span id="cue-clock">Aguardando a primeira marcação</span></div><div id="cue-diagram"></div></div>';
+    if(song && !cues.length && !full)html+='<p class="sync-explanation">A biblioteca tem só a sequência de acordes. A consulta acima procura a cifra com letra já alinhada.</p>';
+    const lines=full?fullRows:lyrics?.lines?.length?lyrics.lines:(lyrics?.plain||'').split('\n').filter(Boolean).map(text=>({text}));
+    rowLinks=full?P.matchChartLyrics(fullRows,lyrics?.lines||[],C):lines.map((_,i)=>({start:i,end:i}));
     if(lines.length){
-      const grouped=lyrics.lines?.length?P.groupCues(lines,cues):{groups:lines.map(()=>[]),intro:cues};
-      const aligned=P.alignLyrics(song?C.transposeSheet(song.sheet,song.transpose||0).text:'',lines,C);
-      const displayEvents=P.events(song?C.transposeSheet(song.sheet,song.transpose||0).text:'',C);
+      const grouped=full?{groups:lines.map(l=>cues.filter(c=>c.line===l.chordLine)),intro:[]}:lyrics.lines?.length?P.groupCues(lines,cues):{groups:lines.map(()=>[]),intro:cues};
+      const aligned=full?fullRows:P.alignLyrics(displayText,lines,C);
+      const displayEvents=P.events(displayText,C);
       html+='<div class="together-lines">';
       if(grouped.intro.length)html+='<div class="instrumental-cues"><small>INTRO / INSTRUMENTAL</small>'+grouped.intro.map(cueButton).join('')+'</div>';
-      html+=lines.map((l,i)=>'<div class="together-line'+(aligned[i]?.chords?' imported-alignment':'')+'" data-together-line="'+i+'"'+(Number.isFinite(l.t)?' data-line-time="'+l.t+'"':'')+'><div class="line-cues">'+grouped.groups[i].filter(c=>!aligned[i]?.chords||c.line!==aligned[i].line-1).map(cueButton).join('')+'</div>'+(aligned[i]?.chords?'<div class="imported-line"><pre class="aligned-chords">'+alignedHtml(aligned[i],displayEvents)+'</pre><pre class="together-text">'+esc(aligned[i].text)+'</pre></div>':'<div class="together-text">'+esc(l.text||'♪')+'</div>')+'</div>').join('');
+      html+=lines.map((l,i)=>{const link=rowLinks[i],time=full?(link?lyrics.lines[link.start].t:null):l.t;return '<div class="together-line'+(aligned[i]?.chords?' imported-alignment':'')+'" data-together-line="'+i+'"'+(Number.isFinite(time)?' data-line-time="'+time+'"':'')+'><div class="line-cues">'+grouped.groups[i].filter(c=>!aligned[i]?.chords||c.line!==(aligned[i].chordLine??aligned[i].line-1)).map(cueButton).join('')+'</div>'+(aligned[i]?.chords?'<div class="imported-line"><pre class="aligned-chords">'+alignedHtml(aligned[i],displayEvents)+'</pre><pre class="together-text">'+esc(aligned[i].text)+'</pre></div>':'<div class="together-text">'+esc(l.text||'♪')+'</div>')+'</div>';}).join('');
       html+='</div>';
     }else{
       html+='<p class="lyric-empty">'+esc(status||'Dê play no Spotify ou escolha uma música.')+'</p>';
@@ -64,10 +70,11 @@
     if(i!==cueAt){cueAt=i;focus(cues[i]);const next=cues[i+1];if($('#cue-next'))$('#cue-next').textContent=next?.chord||'—';if($('#cue-clock')&&cues.length)$('#cue-clock').textContent=next?'Troca em '+stamp(next.t):'Última troca marcada';}
     if(lyrics?.lines?.length){
       const index=H.lyricIndex(lyrics.lines,ms);
-      if(index!==lineAt){rows[lineAt]?.classList.remove('active');lineAt=index;rows[index]?.classList.add('active');}
-      if(!holding && ctx.isPlaying() && index>=0 && rows[index]){
+      const active=rows.filter((_,i)=>rowLinks[i]&&index>=rowLinks[i].start&&index<=rowLinks[i].end);
+      if(index!==lineAt){rows.forEach(r=>r.classList.remove('active'));lineAt=index;active.forEach(r=>r.classList.add('active'));}
+      if(!holding && ctx.isPlaying() && index>=0 && active.length){
         const sc=$('#scroller'),live=$('#together-view .cue-live'),padding=(live?.offsetHeight||0)+sc.clientHeight*.15;
-        const y=rows[index].offsetTop-padding;sc.scrollTop+=(Math.max(0,y)-sc.scrollTop)*.15;
+        const y=active[0].offsetTop-padding;sc.scrollTop+=(Math.max(0,y)-sc.scrollTop)*.15;
       }
     }
     if(!$('#ov-chord-sync').hidden){$('#sync-clock').textContent=stamp(ctx.time());$('#sync-play').textContent=ctx.isPlaying()?'Pausar':'Reproduzir';}
@@ -117,6 +124,7 @@
     $('#together-view').onclick=e=>{
       const action=e.target.closest('[data-together]')?.dataset.together;
       if(action==='sync')openSync();if(action==='import')$('#import-songs').click();
+      if(action==='lookup')ctx.lookupChart();
       const current=e.target.closest('#cue-current');if(current?.dataset.chord)ctx.openChord(current.dataset.chord);
       const hit=e.target.closest('[data-aligned-chord]');if(hit){ctx.openChord(hit.dataset.alignedChord);return;}
       const cue=e.target.closest('[data-cue-time]'),line=e.target.closest('[data-line-time]');
@@ -127,6 +135,6 @@
     $('#sync-play').onclick=()=>ctx.toggle();$('#sync-back').onclick=()=>ctx.seek(Math.max(0,ctx.time()-10000));
     $('#sync-events').onclick=e=>{const b=e.target.closest('[data-sync-event]');if(b){selected=+b.dataset.syncEvent;drawSync();}};
   }
-  function clear(){closeSync();lyrics=null;cues=[];rows=[];cueAt=-2;lineAt=-2;}
+  function clear(){closeSync();lyrics=null;cues=[];rows=[];rowLinks=[];cueAt=-2;lineAt=-2;}
   window.CifraTogether={init,render,frame,clear};
 })();

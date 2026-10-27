@@ -1,3 +1,19 @@
+# Validação da versão 8
+
+- Treze testes Node aprovados: `node --test tests/*.test.cjs`.
+- Regressões das versões 6 e 7 aprovadas em Chromium com reprodução simulada.
+- Importação automática de uma cifra HTML original de teste: posições dos acordes, letra inteira, transposição de tom menor, leitura após reabrir e ausência de nova consulta aprovadas.
+- Validação rejeitou outro artista, outro título, versão ao vivo incompatível e URLs fora da origem permitida.
+- Script contido na página de teste permaneceu inerte; autorização do Spotify e cookies não foram enviados à consulta.
+- Consulta real de What's My Age Again? ao Cifra Club via Jina Reader, em Chromium com Spotify simulado: 58 linhas com letra e acordes renderizadas; zero linhas exigindo rolagem horizontal no viewport de 390 px; quadro vazio removido; cópia salva reutilizada após reabrir.
+- Extração dos HTMLs reais de Don't Speak e Scar Tissue: respectivamente 46 e 43 linhas com acordes sobre a letra; metadados conferidos pelo parser.
+- Comparação com uma resposta real do LRCLIB para essa música: 40 linhas com tempos; 41 das 58 linhas da cifra tiveram correspondência de frase. A frase do instante de 21 segundos encontrou uma linha da cifra. As demais linhas continuam visíveis, sem receber tempos inventados.
+- Nenhuma exceção de página nos fluxos aprovados. Não foi operada a conta real do Spotify nem o iPhone.
+
+A sincronização fina de cada acorde ainda depende de tempos por ocorrência. A consulta online não equivale a uma cifra já cronometrada. A disponibilidade dos serviços foi conferida durante os testes e pode variar.
+
+## Validações anteriores
+
 # Validação da versão 7
 
 Testes adicionais em Chromium com Spotify e LRCLIB simulados e frases originais:
