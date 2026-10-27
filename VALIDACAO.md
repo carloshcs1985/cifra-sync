@@ -1,3 +1,13 @@
+# Validação da versão 16
+
+- 23 testes unitários do aplicativo principal e 23 do leitor (incluindo oito testes de relógio).
+- Cobertura do início automático sem âncora, entrada no meio da reprodução, mudanças de BPM, duração parcial/integral, pausas, assinaturas, repetição simples, rampa de andamento, navegação não suportada, correções de deslocamento/velocidade e distribuição automática de letras.
+- Teste integrado verifica destaque/rolagem sem toque inicial, abertura da segunda gravação já no ponto estimado, ajuste de meio segundo e retorno ao automático; mantém verificações de credenciais, biblioteca e leitores anteriores.
+- Botão Testar Nirvana removido do HTML e de seu handler. Versões de interface/cache atualizadas para 16; armazenamento e autenticação preservados.
+- Alinhamento continua estimado por ritmo/duração. Não valida sincronismo exato com todas as gravações ou diferenças de arranjo.
+
+---
+
 # Validação da versão 15
 
 - 23 testes Node do aplicativo principal e 15 testes Node do laboratório aprovados.

@@ -1,6 +1,16 @@
-# Cifra Sync · Estudo 15
+# Cifra Sync · Estudo 16
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Acompanhamento automático na versão 16
+
+Em **Tablaturas → Songsterr**, a rolagem e o destaque começam automaticamente pelo tempo atual do Spotify. Não é necessário apertar um botão no instante da troca. Abrir a aba no meio da faixa vai diretamente ao compasso estimado daquele momento; pausa, retomada e retorno de reprodução continuam pelo relógio do Spotify.
+
+A linha de tempo usa durações das notas/pausas, fórmulas de compasso, mudanças de andamento e repetições simples da fonte, ajustadas à duração da gravação. Sem andamento disponível, usa a distribuição relativa das durações. Navegação especial não interpretada recebe uma estimativa linear limitada. A tablatura pode ser de outro arranjo: isso **não garante sincronismo exato com o áudio**. Não há reconhecimento de notas pelo microfone.
+
+Use **Adiantar 0,5 s** se a tela estiver atrasada e **Atrasar 0,5 s** se estiver adiantada. **Automático** remove as correções e retorna à estimativa inicial. Desmarcar **Seguir** permite ler livremente. **Este compasso começa agora** continua como correção opcional; uma segunda marcação ajusta a velocidade, e a letra abaixo dos compassos é reposicionada junto. Os ajustes ficam somente na sessão e são limpos ao trocar a gravação/pista.
+
+O botão de demonstração **Testar Nirvana** foi removido. Juntos, Cifras, arquivos locais, dados pessoais e conexão Spotify permanecem iguais. Não é necessário outro login ou nova configuração.
 
 ## Tablaturas Songsterr na versão 15
 
@@ -102,7 +112,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 15**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 16**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 

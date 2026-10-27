@@ -1,10 +1,10 @@
 /* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
-const VERSION = '15';
+const VERSION = '16';
 const CACHE = 'cifrasync-v' + VERSION;
 const ASSETS = ['./', './index.html', './styles.css?v=' + VERSION, './core.js?v=' + VERSION, './app.js?v=' + VERSION,
   './storage.js?v=' + VERSION, './study-core.js?v=' + VERSION, './playalong-core.js?v=' + VERSION, './together.js?v=' + VERSION, './study.js?v=' + VERSION,
   './catalog.js?v=' + VERSION, './chart-source.js?v=' + VERSION, './import-worker.js?v=' + VERSION, './vendor/fflate.min.js',
-  './songsterr.js?v=' + VERSION, './lab/songsterr/?embedded=1&v=15', './lab/songsterr/index.html', './lab/songsterr/embed.css?v=15', './lab/songsterr/embedded.js?v=15', './lab/songsterr/source.js?v=6', './lab/songsterr/matching.js?v=6', './lab/songsterr/selection.js?v=6', './lab/songsterr/lyrics.js?v=6', './lab/songsterr/lab.js?v=6',
+  './songsterr.js?v=' + VERSION, './lab/songsterr/?embedded=1&v=16', './lab/songsterr/index.html', './lab/songsterr/embed.css?v=16', './lab/songsterr/embedded.js?v=16', './lab/songsterr/source.js?v=7', './lab/songsterr/matching.js?v=7', './lab/songsterr/selection.js?v=7', './lab/songsterr/lyrics.js?v=7', './lab/songsterr/lab.js?v=7', './lab/songsterr/timing.js?v=7',
   './tabs-core.js?v=' + VERSION, './tabs.js?v=' + VERSION, './assets/tab-exercises.json',
   './assets/chord-shapes.json', './catalog/manifest.json', './catalog/seed.json',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];

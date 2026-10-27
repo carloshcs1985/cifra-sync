@@ -1,6 +1,6 @@
-# Cifra Sync · Estudo 15
+# Cifra Sync · Estudo 16
 
-Atualização 15: use **Juntos / Cifras / Tablaturas**. Em Tablaturas, Songsterr usa a conexão Spotify existente; não cadastre outro Redirect URI e não remova o principal. **Este compasso começa agora** inicia o acompanhamento estimado; uma segunda marcação ajusta a velocidade. A letra com tempos disponível no app aparece junto do leitor. **Meus arquivos / exercícios** mantém suas tablaturas anteriores. Letra e Acordes estão em **Menu → Leituras de estudo**. Consulte o README para detalhes e limitações. Não apague os dados do site para atualizar.
+Atualização 16: use **Juntos / Cifras / Tablaturas**. Em Tablaturas, Songsterr usa a conexão Spotify existente; não cadastre outro Redirect URI e não remova o principal. O acompanhamento estimado começa automaticamente pelo tempo do Spotify; Adiantar/Atrasar corrige diferenças, e a marcação manual é opcional. A letra com tempos disponível no app aparece junto do leitor. **Meus arquivos / exercícios** mantém suas tablaturas anteriores. Letra e Acordes estão em **Menu → Leituras de estudo**. Consulte o README para detalhes e limitações. Não apague os dados do site para atualizar.
 
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
