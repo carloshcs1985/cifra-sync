@@ -101,3 +101,7 @@ Em 26/10/2026 foram realizados testes locais em Chromium headless. Os testes de 
 ## Escopo
 
 O teste de volume validou o importador, os índices, a continuidade da interface e o funcionamento offline. Os ajustes finais de interface e preservação das edições foram conferidos nos testes funcionais posteriores. As transcrições de terceiros não foram revisadas musicalmente uma a uma. O guia de My Sacrifice é simplificado, sem o riff original e sem tempos artificiais de acordes. A disponibilidade das letras varia por faixa/serviço e deve ser conferida no uso real.
+
+## Versão 14 — remoção do catálogo
+
+23 testes Node aprovados. Teste em Chromium com tela de 390 × 844: cancelamento não alterou a contagem; remoção de 5.000 registros de teste e da seleção inicial preservou cifras pessoais, marcações, transposição, letras e tablaturas. Registros legados de catálogo com marcações/transposição passaram a pessoais. Recarga não reinstalou a seleção inicial; reimportação explícita continuou possível. Nenhum erro JavaScript. O teste não mediu recuperação de 500 MB físicos: o espaço recuperado depende do navegador.

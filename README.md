@@ -1,6 +1,10 @@
-# Cifra Sync · Estudo 13
+# Cifra Sync · Estudo 14
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Remover catálogo na versão 14
+
+Em **Menu → Biblioteca offline**, o botão **Remover catálogo importado** fica junto da importação. Após confirmar, remove apenas os registros de catálogo sem alterações e preserva cifras pessoais, letras, tablaturas, marcações e configurações. Registros de catálogo com marcações ou transposição são mantidos como pessoais. A biblioteca inicial não é reinstalada automaticamente após a remoção. É possível importar o banco novamente. A busca online continua disponível quando habilitada; o ganho de espaço depende do navegador e o catálogo deixa de estar disponível offline.
 
 ## Ajuste de rolagem na versão 13
 Nas abas Cifra e Juntos, toque em **Ajustar rolagem** e depois na frase que está ouvindo. A reprodução continua, a posição é salva na cifra deste aparelho e o acompanhamento segue dali. Se precisar, repita em outro trecho. Os pontos substituem a estimativa por letra; o intervalo entre eles continua estimado. Use Desfazer ou apague as marcações pelo menu.
@@ -84,7 +88,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 13**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 14**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 

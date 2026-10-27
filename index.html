@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="13">
-<link rel="stylesheet" href="styles.css?v=13">
+<meta name="app-version" content="14">
+<link rel="stylesheet" href="styles.css?v=14">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -151,7 +151,11 @@
       <button class="item" id="m-retry-lyrics"><span>Tentar carregar a letra novamente</span></button>
     </div>
     <h4>Biblioteca offline</h4>
-    <div class="group"><button class="item" id="m-download-catalog"><span>Importar banco completo</span><span class="sub">430 mil · arquivo único</span></button></div>
+    <div class="group catalog-actions">
+      <button class="item" id="m-download-catalog"><span>Importar banco completo</span><span class="sub">430 mil · arquivo único</span></button>
+      <button class="item catalog-remove" id="m-remove-catalog"><span>Remover catálogo importado<br><span class="sub">Libera espaço · preserva suas cifras e marcações</span></span><span aria-hidden="true">⌫</span></button>
+    </div>
+    <p id="catalog-removal-status" class="sub" role="status" hidden></p>
     <p class="sub">Acordes são salvos no aparelho. Letras são consultadas por faixa, quando disponíveis. Diagramas em afinação padrão.</p>
     <h4>Dados</h4>
     <div class="group">
@@ -268,17 +272,17 @@
 <input type="file" id="import-songs" accept=".tab,.txt,.cho,.chopro,.chordpro,.crd,.pro,.json,.jsonl,.gz,.zip,.lrc,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=13"></script>
-<script src="study-core.js?v=13"></script>
-<script src="playalong-core.js?v=13"></script>
-<script src="tabs-core.js?v=13"></script>
-<script src="storage.js?v=13"></script>
-<script src="catalog.js?v=13"></script>
-<script src="chart-source.js?v=13"></script>
-<script src="together.js?v=13"></script>
+<script src="core.js?v=14"></script>
+<script src="study-core.js?v=14"></script>
+<script src="playalong-core.js?v=14"></script>
+<script src="tabs-core.js?v=14"></script>
+<script src="storage.js?v=14"></script>
+<script src="catalog.js?v=14"></script>
+<script src="chart-source.js?v=14"></script>
+<script src="together.js?v=14"></script>
 <script src="vendor/fflate.min.js"></script>
-<script src="tabs.js?v=13"></script>
-<script src="study.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="tabs.js?v=14"></script>
+<script src="study.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
