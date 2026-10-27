@@ -1,3 +1,17 @@
+# Validação da versão 10
+
+- 21 testes Node aprovados: `node --test tests/*.test.cjs`. Incluem leitura de tablaturas de seis/quatro cordas, técnicas, rejeição de sete cordas e instrumentos incompatíveis, marcações por gravação, nove exercícios originais e notas dos diagramas de cavaquinho.
+- Chromium com Spotify/LRCLIB simulados: atualização real de um banco IndexedDB versão 1 para 2, preservando cifras e metadados; extração de dois blocos de uma cifra pessoal; bibliotecas por instrumento; importação TAB e ZIP na aba nova e TAB/backup pelo worker principal.
+- Pausa impede marcação; início de trecho salvo; transpor acordes preserva números da tablatura. Backup principal restaurou marcações sobre uma cópia mais nova sem tempos. Extração automática usa uma transação para preservar marcações restauradas simultaneamente.
+- Consulta automática de uma página HTML original de teste contendo apenas tablatura (sem letra/acordes): blocos salvos, script inerte, sem autorização/cookies do Spotify. Outro título, artista, instrumento e URL externa rejeitados. Reabrir usa o registro salvo sem nova consulta.
+- Cavaquinho: exercício com quatro cordas e diagramas com rótulos D G B D; nenhuma conversão automática de seis cordas.
+- Reprodução do caso da imagem com A5/E e D5/A: apenas “Não encontrado”; faixa com 96 px e nome atual em 22 px; 405 px de leitura no viewport testado de 390 × 844. Sem excesso horizontal no documento; leitura disponível em paisagem 844 × 390.
+- Regressão anterior aprovada em Chromium: migração de cifras, consulta de letra, posições alternativas, importações TXT/gzip/ZIP/LRC, preservação de versões pessoais e backup sem tokens. Nenhuma exceção de página nos fluxos aprovados.
+
+Os testes atuais usam reprodução simulada, não a conta real do usuário nem o iPhone. A consulta pública continua individual, por Cifra Club/Jina Reader; sua disponibilidade pode variar. Rolagem sem marcação é estimada por trecho e não fornece tempos individuais das notas.
+
+## Histórico
+
 # Validação da versão 9
 
 - Dezesseis testes Node aprovados: `node --test tests/*.test.cjs`. Cobrem marcações por ocorrência, guia por frase/estrutura, prioridade das marcações, transposição sem deslocar tempos, retorno e frases divididas em mais de uma linha.
