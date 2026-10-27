@@ -9,9 +9,11 @@
   function open() {
     if (opened) return opened;
     opened = new Promise((yes, no) => {
-      const req = indexedDB.open(NAME, 1);
+      const req = indexedDB.open(NAME, 2);
       req.onupgradeneeded = () => {
         const db = req.result;
+        if(!db.objectStoreNames.contains('tabs')){const tabs=db.createObjectStore('tabs',{keyPath:'id'});tabs.createIndex('instrument','instrument');}
+        if(db.objectStoreNames.contains('songs'))return;
         const songs = db.createObjectStore('songs', { keyPath: 'id' });
         songs.createIndex('trackIds', 'trackIds', { multiEntry: true });
         songs.createIndex('key', 'key'); songs.createIndex('sortKey', 'sortKey');
@@ -110,5 +112,16 @@
     if (arguments.length === 1) return request(db.transaction('lyrics').objectStore('lyrics').get(id));
     const tx = db.transaction('lyrics', 'readwrite'); tx.objectStore('lyrics').put({ ...value, id }); await done(tx);
   }
-  root.CifraDB = { open, normalize, bulkPut, get, remove, count, find, hasMany, search, personal, meta, lyrics };
+  async function tabsPut(values) {const rows=values.map(v=>root.CifraTabsCore.normalize(v)).filter(Boolean),db=await open(),tx=db.transaction('tabs','readwrite'),finished=done(tx),os=tx.objectStore('tabs');for(const row of rows)os.put(row);await finished;return rows.length;}
+  // Automatic extraction merges inside one transaction so a concurrent backup restore
+  // cannot lose section marks to an earlier, stale snapshot of the cache.
+  async function tabsCapture(value) {
+    const row=root.CifraTabsCore.normalize(value);if(!row)return;
+    const db=await open(),tx=db.transaction('tabs','readwrite'),finished=done(tx),os=tx.objectStore('tabs'),r=os.get(row.id);
+    r.onsuccess=()=>{const old=r.result;if(old&&old.body===row.body){os.put({...row,timings:old.timings,timingTrackId:old.timingTrackId,timingSignature:old.timingSignature,timingDuration:old.timingDuration,trackIds:[...new Set([...old.trackIds,...row.trackIds])]});}else os.put(row);};
+    await finished;
+  }
+  async function tabsList(instrument) {const db=await open(),os=db.transaction('tabs').objectStore('tabs');return request(instrument?os.index('instrument').getAll(instrument):os.getAll());}
+  async function tabsRemove(id) {const db=await open(),tx=db.transaction('tabs','readwrite');tx.objectStore('tabs').delete(id);await done(tx);}
+  root.CifraDB = { tabsPut,tabsList,tabsRemove,tabsCapture, open, normalize, bulkPut, get, remove, count, find, hasMany, search, personal, meta, lyrics };
 })(typeof self !== 'undefined' ? self : globalThis);

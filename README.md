@@ -1,6 +1,22 @@
-# Cifra Sync · Estudo 9
+# Cifra Sync · Estudo 10
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Tablatura e instrumentos na versão 10
+
+Nova aba **Tablatura**, com biblioteca local por **guitarra, violão e cavaquinho**, busca, importação TXT/TAB/JSON/ZIP, exportação separada e inclusão no backup principal. Começa com **nove exercícios originais** (três por instrumento), não com um acervo de músicas comerciais. O banco cresce com as suas importações e os blocos de tablatura das cifras consultadas. Os 430 mil registros anteriores são cifras/estruturas de acordes, não tablaturas.
+
+O seletor de instrumento aparece acima dos leitores. Guitarra e violão usam seis cordas; cavaquinho usa quatro, em D G B D (grave → agudo). Os diagramas de cavaquinho são formas de estudo calculadas a partir das notas do acorde, sem indicação automática dos dedos. Afinações alternativas e capotraste precisam ser conferidos na transcrição. A tablatura informa também os nomes das cordas extraídos das suas próprias linhas.
+
+**Aprender a ler tablatura** explica casas, corda solta, notas simultâneas, hammer-on, pull-off, slide, bend e vibrato. Abrir o guia interrompe a rolagem para permitir a leitura. Os exercícios são de técnica, cordas, dedilhado e baixo/resposta, úteis no começo do estudo de rock, pagode e sertanejo; não são arranjos de músicas específicas.
+
+A consulta ao Cifra Club é individual e não oficial, por meio do Jina Reader, sem envio de autorização do Spotify. Blocos encontrados em cifras já salvas são reaproveitados. Ao abrir Tablatura sem uma versão da faixa, o app consulta a página se a busca automática estiver habilitada; **Buscar tablatura da faixa** permite tentar manualmente. Uma tentativa sem resultado não se repete automaticamente por seis horas. A disponibilidade depende da página e do serviço; nem toda cifra contém solo ou tablatura. Uma versão de seis cordas não é convertida em cavaquinho.
+
+O acompanhamento por trecho é **estimado** pela estrutura da cifra ou duração da faixa. **Marcar início agora** grava o início de um trecho para a gravação em reprodução. Isso não fornece o tempo exato de cada nota nem reconhece notas do áudio. Transpor os acordes não muda os números das casas. Exercícios sem faixa vinculada ficam em leitura livre.
+
+A faixa de acordes foi compactada para 96 px (78 px em paisagem baixa), com o nome do acorde menor. Diagramas ausentes mostram somente **Não encontrado**, sem aumentar a altura. A mesma faixa permanece em Cifras e Juntos.
+
+Mantida a estrutura gratuita no GitHub Pages, sem servidor adicional ou chave paga. O banco existente é preservado na atualização. Backup principal e exportação de tablaturas preservam as marcações pessoais; a restauração explícita prevalece sobre o cache sem marcações, inclusive durante extração simultânea.
 
 ## Rolagem e diagramas na versão 9
 
@@ -55,7 +71,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 9**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 10**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 

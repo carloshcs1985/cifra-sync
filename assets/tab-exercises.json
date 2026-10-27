@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "tabs": [
+    {
+      "id": "exercise:guitarra:0",
+      "instrument": "guitarra",
+      "title": "Cordas soltas",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|0---0------------------------|\nB|---0---0---------------------|\nG|------0---0------------------|\nD|---------0---0---------------|\nA|------------0---0------------|\nE|---------------0---0---------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / rock",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:guitarra:1",
+      "instrument": "guitarra",
+      "title": "Casas e palhetada alternada",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|0-1-2-3----------------------|\nB|---0-1-2-3-------------------|\nG|------0-1-2-3----------------|\nD|---------0-1-2-3-------------|\nA|------------0-1-2-3----------|\nE|---------------0-1-2-3-------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / rock",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:guitarra:2",
+      "instrument": "guitarra",
+      "title": "Ligados: hammer-on e pull-off",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|0h2p0------------------------|\nB|---0h2p0---------------------|\nG|------0h2p0------------------|\nD|---------0h2p0---------------|\nA|------------0h2p0------------|\nE|---------------0h2p0---------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / rock",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:violao:0",
+      "instrument": "violao",
+      "title": "Primeiro dedilhado",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|0---0------------------------|\nB|---0---0---------------------|\nG|------0---0------------------|\nD|---------0---0---------------|\nA|------------0---0------------|\nE|---------------0---0---------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:violao:1",
+      "instrument": "violao",
+      "title": "Baixo e resposta em C",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|--------0-----------0--------|\nB|------1-----------1----------|\nG|----0-----------0------------|\nD|------------2----------------|\nA|3----------------------------|\nE|-----------------------------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:violao:2",
+      "instrument": "violao",
+      "title": "Mudança de cordas",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\ne|0h2p0------------------------|\nB|---0h2p0---------------------|\nG|------0h2p0------------------|\nD|---------0h2p0---------------|\nA|------------0h2p0------------|\nE|---------------0h2p0---------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:cavaquinho:0",
+      "instrument": "cavaquinho",
+      "title": "Conhecendo as quatro cordas",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\nD|0---0------------------------|\nB|---0---0---------------------|\nG|------0---0------------------|\nD|---------0---0---------------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:cavaquinho:1",
+      "instrument": "cavaquinho",
+      "title": "Casas e palhetada",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\nD|0-1-2-3----------------------|\nB|---0-1-2-3-------------------|\nG|------0-1-2-3----------------|\nD|---------0-1-2-3-------------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    },
+    {
+      "id": "exercise:cavaquinho:2",
+      "instrument": "cavaquinho",
+      "title": "Ligados: exercício curto",
+      "artist": "Cifra Sync · exercício original",
+      "body": "[Estudo original]\nD|0h2p0------------------------|\nB|---0h2p0---------------------|\nG|------0h2p0------------------|\nD|---------0h2p0---------------|",
+      "origin": "exercise",
+      "source": "Exercício original",
+      "genre": "Técnica / pagode e sertanejo",
+      "updatedAt": 1
+    }
+  ]
+}

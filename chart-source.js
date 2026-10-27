@@ -66,6 +66,22 @@
     }
     await DB.meta(key,{missing:true,at:Date.now()});throw last||new Error('Não encontrei a cifra com letra.');
   }
+  function parseTab(html,track,url,instrument='guitarra') {
+    const safe=sourceUrl(url);if(!safe)throw new Error('Link de tablatura inválido.');
+    const doc=documentFrom(html),artist=String(track.artist||'').split(',')[0].trim(),title=doc.querySelector('h1')?.textContent.trim()||'';
+    if(![...doc.querySelectorAll('h2')].some(n=>H.identity(n.textContent)===H.identity(artist))||H.identity(title)!==H.identity(track.title)||H.variant(title)!==H.variant(track.title))throw new Error('A página não corresponde à faixa.');
+    const canonical=sourceUrl(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')||safe);
+    if(!canonical||new URL(canonical).pathname.split('/')[1]!==new URL(safe).pathname.split('/')[1])throw new Error('A página retornou outro artista.');
+    const pre=doc.querySelector('pre[data-chord-content],.cifra_cnt pre,article pre');if(!pre)throw new Error('A página não contém tablatura textual.');
+    const body=C.cleanPasted(plain(pre));if(!window.CifraTabsCore.extract(body).some(b=>window.CifraTabsCore.compatible(b,instrument)))throw new Error(instrument==='cavaquinho'?'Não encontrei tablatura de 4 cordas D G B D. Importe uma versão para cavaquinho.':'A página não contém blocos de tablatura de 6 cordas.');
+    return {title,artist,body,instrument,source:'Cifra Club',sourceUrl:canonical};
+  }
+  async function lookupTab(track,{instrument='guitarra',signal}={}) {
+    if(!track?.title||!track?.artist)throw new Error('Dê play em uma música primeiro.');
+    const key=C.normKey(track.artist,track.title)+'|'+H.variant(track.title),saved=await DB.meta('tab-source:'+key),chart=await DB.meta('chart-lookup:'+key),base=C.cifraClubUrl(track.artist,track.title),urls=[saved?.url,chart?.url];
+    if(/[?!]\s*$/.test(C.baseTitle(track.title)))urls.push(base.replace(/\/$/,'-/'));urls.push(base);let last;
+    for(const url of [...new Set(urls.filter(Boolean))]){try{const tab=parseTab(await read(url,signal),track,url,instrument);await DB.meta('tab-source:'+key,{url:tab.sourceUrl});return tab;}catch(e){if(e.name==='AbortError'||e.blocked||Date.now()<cooldown)throw e;last=e;}}throw last||new Error('Não encontrei tablatura nesta consulta.');
+  }
   async function decline(song){await DB.meta('chart-lookup:'+C.normKey(song.artist,song.title)+'|'+H.variant(song.title),{declined:true,at:Date.now()});}
-  window.CifraChartSource={lookup,parse,sourceUrl,decline};
+  window.CifraChartSource={lookup,parse,sourceUrl,decline,parseTab,lookupTab};
 })();

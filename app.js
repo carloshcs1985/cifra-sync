@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '9';
+  const APP_VERSION = '10';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -1059,8 +1059,8 @@
 
   async function exportBackup() {
     await persistQueue;
-    const personal=await DB.personal();
-    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: Object.fromEntries(personal.map(s=>[s.id,s])), queue: store.queue }, null, 2);
+    const personal=await DB.personal(),tabs=(await DB.tabsList()).filter(t=>t.origin!=='exercise');
+    const json = JSON.stringify({ app: 'cifra-sync', version: 1, exportedAt: new Date().toISOString(), songs: Object.fromEntries(personal.map(s=>[s.id,s])), tabs, queue: store.queue }, null, 2);
     const name = `cifra-sync-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([json], name, { type: 'application/json' });
     try {
@@ -1419,7 +1419,7 @@
 
   async function boot() {
     if (versionMismatch()) return;
-    if(S.versionWarn || !DB || !Catalog || !Study || !ChartSource){
+    if(S.versionWarn || !DB || !Catalog || !Study || !ChartSource || !window.CifraTabs || !window.CifraTabsCore){
       el.empty.hidden=false;el.empty.innerHTML='<h2>Atualização incompleta</h2><p>Seus dados foram mantidos. Reabra o aplicativo após a publicação terminar.</p><button class="btn" id="retry-update">Recarregar</button>';
       $('#retry-update').onclick=()=>location.reload();return;
     }

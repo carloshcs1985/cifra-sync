@@ -1,9 +1,10 @@
 /* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
-const VERSION = '9';
+const VERSION = '10';
 const CACHE = 'cifrasync-v' + VERSION;
 const ASSETS = ['./', './index.html', './styles.css?v=' + VERSION, './core.js?v=' + VERSION, './app.js?v=' + VERSION,
   './storage.js?v=' + VERSION, './study-core.js?v=' + VERSION, './playalong-core.js?v=' + VERSION, './together.js?v=' + VERSION, './study.js?v=' + VERSION,
   './catalog.js?v=' + VERSION, './chart-source.js?v=' + VERSION, './import-worker.js?v=' + VERSION, './vendor/fflate.min.js',
+  './tabs-core.js?v=' + VERSION, './tabs.js?v=' + VERSION, './assets/tab-exercises.json',
   './assets/chord-shapes.json', './catalog/manifest.json', './catalog/seed.json',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 

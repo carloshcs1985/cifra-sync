@@ -10,14 +10,16 @@
     if (!shapePromise) shapePromise = fetch('assets/chord-shapes.json').then(r => { if (!r.ok) throw new Error('Diagramas indisponíveis.'); return r.json(); }).then(j => (shapes = j)).catch(e => { shapePromise = null; throw e; });
     return shapePromise;
   }
+  function chordEntry(chord){return window.CifraTabs.instrument()==='cavaquinho'?window.CifraTabsCore.cavaquinho(chord,C.parseChordToken):shapes&&H.chordLookup(chord,shapes,C.parseChordToken);}
   function shapeSvg(chord, position = 0) {
-    const entry = shapes && H.chordLookup(chord, shapes, C.parseChordToken);
-    if (!entry) return '<p class="sub diagram-unavailable">Forma não cadastrada nesta afinação.</p>';
+    const entry = chordEntry(chord);
+    if (!entry) return '<p class="sub diagram-unavailable">Não encontrado</p>';
     const p = entry.positions[position % entry.positions.length];
-    const top = 32, left = 22, step = 18, height = 23, frets = Math.max(4, ...p.frets.filter(n => n > 0));
+    const strings=entry.strings||6,labels=entry.labels||['E','A','D','G','B','e'];
+    const top = 32, left = strings===4?40:22, step = 18, height = 23, frets = Math.max(4, ...p.frets.filter(n => n > 0));
     let svg = `<svg viewBox="0 0 144 ${top + frets * height + 25}" role="img" aria-label="${esc(chord)}: posição ${position + 1}, casa inicial ${p.baseFret}">`;
-    for (let s = 0; s < 6; s++) svg += `<path d="M${left+s*step} ${top}V${top+frets*height}" stroke="currentColor" stroke-width=".7" fill="none"/>`;
-    for (let f = 0; f <= frets; f++) svg += `<path d="M${left} ${top+f*height}H${left+5*step}" stroke="currentColor" stroke-width="${f===0 && p.baseFret===1 ? 3 : .7}" fill="none"/>`;
+    for (let s = 0; s < strings; s++) svg += `<path d="M${left+s*step} ${top}V${top+frets*height}" stroke="currentColor" stroke-width=".7" fill="none"/>`;
+    for (let f = 0; f <= frets; f++) svg += `<path d="M${left} ${top+f*height}H${left+(strings-1)*step}" stroke="currentColor" stroke-width="${f===0 && p.baseFret===1 ? 3 : .7}" fill="none"/>`;
     if (p.baseFret > 1) svg += `<text x="3" y="${top+17}" class="fret-label">${p.baseFret}</text>`;
     for (const barre of p.barres || []) {
       const strings = p.frets.map((f, i) => f === barre ? i : -1).filter(i => i >= 0);
@@ -30,7 +32,7 @@
         const y = top+(f-.5)*height;
         svg += `<circle cx="${x}" cy="${y}" r="7"/><text x="${x}" y="${y+3}" text-anchor="middle" class="finger-number">${p.fingers[i]||''}</text>`;
       }
-      svg += `<text x="${x}" y="${top+frets*height+18}" text-anchor="middle" class="string-label">${['E','A','D','G','B','e'][i]}</text>`;
+      svg += `<text x="${x}" y="${top+frets*height+18}" text-anchor="middle" class="string-label">${labels[i]}</text>`;
     });
     return svg + '</svg>';
   }
@@ -48,7 +50,7 @@
     $('#chords-view').innerHTML = '<p class="sub">Carregando posições…</p>';
     try {
       await shapeData();
-      $('#chords-view').innerHTML = `<div class="reader-heading"><span class="eyebrow">POSIÇÕES PARA ESTUDAR</span><h2>Acordes da música</h2><p>Afinação padrão E A D G B e · toque para ver outras posições.<br>1 indicador · 2 médio · 3 anelar · 4 mínimo · × não tocar · ○ corda solta</p></div>` +
+      $('#chords-view').innerHTML = `<div class="reader-heading"><span class="eyebrow">POSIÇÕES PARA ESTUDAR</span><h2>Acordes da música</h2><p>${window.CifraTabs.instrument()==='cavaquinho'?'Cavaquinho · D G B D · formas de estudo sem indicação dos dedos.':'Guitarra/violão · E A D G B e · 1 indicador · 2 médio · 3 anelar · 4 mínimo.'}<br>Toque para ver outras posições · × não tocar · ○ corda solta</p></div>` +
         (items.length ? '<div class="chord-grid">' + items.map(ch => `<button class="chord-card" data-chord="${esc(ch)}"><strong>${esc(ch)}</strong>${shapeSvg(ch)}</button>`).join('') + '</div>' : '<p>Importe uma cifra para visualizar os acordes.</p>');
     } catch (e) { $('#chords-view').textContent = e.message; }
   }
@@ -85,10 +87,10 @@
     try { await shapeData(); drawChord(); } catch (e) { $('#chord-shape').textContent = e.message; }
   }
   function drawChord() {
-    const entry = H.chordLookup(selectedChord, shapes, C.parseChordToken);
+    const entry = chordEntry(selectedChord);
     $('#chord-title').textContent = selectedChord;
     $('#chord-shape').innerHTML = shapeSvg(selectedChord, selectedPosition);
-    $('#chord-position').textContent = entry ? `Posição ${selectedPosition+1} de ${entry.positions.length}` : 'Sem posição cadastrada';
+    $('#chord-position').textContent = entry ? `Posição ${selectedPosition+1} de ${entry.positions.length}` : 'Não encontrado';
     $('#chord-prev').disabled = $('#chord-next').disabled = !entry || entry.positions.length < 2;
   }
   function setMode(next) {
@@ -99,6 +101,8 @@
     $('#empty').hidden = mode !== 'sheet' || !!ctx.song();
     $('#lyrics-view').hidden = mode !== 'lyrics'; $('#chords-view').hidden = mode !== 'chords';
     $('#together-view').hidden = mode !== 'together';
+    $('#tabs-view').hidden = mode !== 'tabs';
+    if(mode==='tabs')window.CifraTabs.refresh();
     $('#scroller').scrollTop = 0; ctx.resetScroll();
     if (mode === 'chords') diagrams();
     if (mode === 'lyrics') renderLyrics();
@@ -184,6 +188,7 @@
     const state=window.CifraTogether.playback(ms);
     if(['sheet','together'].includes(mode))focusChords(state);
     if (mode === 'together') return window.CifraTogether.frame(ms,holding,state);
+    if (mode === 'tabs') return window.CifraTabs.frame(ms,holding);
     if (mode !== 'lyrics') return false;
     if (!lyrics || !lyricEls.length) return true;
     const timed = !!lyrics.lines.length;
@@ -211,6 +216,7 @@
   }
   function init(context) {
     ctx=context;
+    window.CifraTabs.init({...ctx,mode:()=>mode,instrumentChanged:()=>{renderChordbar();if(mode==='chords')diagrams();if(!$('#chord-modal').hidden){selectedPosition=0;drawChord();}window.CifraTogether.render(lyrics,status);}});
     window.CifraTogether.init({...ctx,shapes:shapeData,svg:shapeSvg,openChord});
     document.querySelectorAll('[data-study-mode]').forEach(b => b.onclick=()=>setMode(b.dataset.studyMode));
     $('#chords-view').onclick=e=>{const b=e.target.closest('[data-chord]');if(b)openChord(b.dataset.chord);};
@@ -219,7 +225,7 @@
     $('#m-diagrams').onchange=e=>{ctx.settings().diagrams=e.target.checked;ctx.save();renderChordbar();};
     $('#sheet').addEventListener('click',e=>{const b=e.target.closest('[data-chord]');if(b&&!ctx.recording()){e.preventDefault();e.stopImmediatePropagation();openChord(b.dataset.chord);}},true);
     $('#chord-close').onclick=()=>{$('#chord-modal').hidden=true;};
-    for(const delta of [-1,1]) $(delta<0?'#chord-prev':'#chord-next').onclick=()=>{const e=H.chordLookup(selectedChord,shapes,C.parseChordToken);if(e){selectedPosition=(selectedPosition+delta+e.positions.length)%e.positions.length;drawChord();}};
+    for(const delta of [-1,1]) $(delta<0?'#chord-prev':'#chord-next').onclick=()=>{const e=chordEntry(selectedChord);if(e){selectedPosition=(selectedPosition+delta+e.positions.length)%e.positions.length;drawChord();}};
     $('#m-auto-lyrics').checked=ctx.settings().autoLyrics!==false;
     $('#m-auto-lyrics').onchange=e=>{ctx.settings().autoLyrics=e.target.checked;ctx.save();loadLyrics(ctx.track(),ctx.song());};
     $('#m-lyric-strip').checked=ctx.settings().showLyricStrip!==false;
@@ -228,7 +234,7 @@
     $('#lyrics-view').onclick=e=>{const ln=e.target.closest('[data-lyric-index]');if(ln&&lyrics?.lines.length)ctx.seek(lyrics.lines[+ln.dataset.lyricIndex].t);};
     setMode('together');
   }
-  function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
-  function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
+  function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();window.CifraTabs.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
+  function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);window.CifraTabs.refresh();renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
   window.CifraStudy={init,frame,refresh,clear,loadLyrics,importLrc,focusChords,mode:()=>mode,setMode,playback:ms=>window.CifraTogether.playback(ms)};
 })();

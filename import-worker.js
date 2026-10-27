@@ -1,6 +1,7 @@
 /* Leitura incremental em worker: JSONL/gzip e ZIP não bloqueiam a tela. */
-importScripts('core.js?v=8', 'playalong-core.js?v=8', 'storage.js?v=8', 'vendor/fflate.min.js');
+importScripts('core.js?v=10', 'playalong-core.js?v=10', 'tabs-core.js?v=10', 'storage.js?v=10', 'vendor/fflate.min.js');
 const C = self.CifraCore, DB = self.CifraDB;
+let importInstrument='guitarra';
 let batch = [], received = 0, written = 0, total = 0, ignored = 0;
 async function flush() {
   if (!batch.length) return;
@@ -36,13 +37,17 @@ async function lines(stream) {
 async function textFile(name, text, strict = true) {
   if (/\.json$/i.test(name)) {
     const data = JSON.parse(text);
+    if(data.tabs){const tabs=Object.values(data.tabs).map(t=>({...t,origin:'personal'}));written+=await DB.tabsPut(tabs);received+=tabs.length;}
     const rows = data.songs ? Object.values(data.songs) : Array.isArray(data) ? data : data.sheet ? [data] : null;
+    if(!rows&&data.tabs)return;
     if (!rows) { ignored++; if (strict) throw new Error('JSON sem músicas no formato do Cifra Sync.'); return; }
     total += rows.length;
     for (const s of rows) await add(s);
     if (Array.isArray(data.queue)) postMessage({ type: 'queue', queue: data.queue.slice(0, 5000) });
-  } else if (/\.(txt|cho|chopro|chordpro|crd|pro)$/i.test(name)) {
+  } else if (/\.(tab|txt|cho|chopro|chordpro|crd|pro)$/i.test(name)) {
     for (const s of C.parseImportFile(name, text)) {
+      const tab=self.CifraTabsCore.normalize({...s,body:s.sheet,instrument:importInstrument});
+      if(tab){written+=await DB.tabsPut([tab]);received++;}
       if (!s.hasChords) { ignored++; continue; }
       s.id = 'file:' + hash(C.normKey(s.artist, s.title) + '|' + s.sheet);
       s.kind = 'personal'; await add(s);
@@ -54,7 +59,7 @@ async function zip(file) {
   let jobs = Promise.resolve(), recognized = 0, archiveError = null;
   const unzip = new fflate.Unzip(entry => {
     if (entry.name.endsWith('/')) return;
-    if (!/\.(json|txt|cho|chopro|chordpro|crd|pro)$/i.test(entry.name)) { ignored++; return; }
+    if (!/\.(json|tab|txt|cho|chopro|chordpro|crd|pro)$/i.test(entry.name)) { ignored++; return; }
     recognized++;
     const chunks = []; let size = 0;
     entry.ondata = (error, bytes, final) => {
@@ -82,6 +87,7 @@ async function zip(file) {
 }
 self.onmessage = async ({ data }) => {
   try {
+    importInstrument=data.instrument||'guitarra';
     await DB.open();
     const files = data.files || [];
     if (data.url) {
