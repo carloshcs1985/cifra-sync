@@ -2,11 +2,11 @@
 (() => {
   'use strict';
   const C = window.CifraCore;
-  const DB = window.CifraDB, Catalog = window.CifraCatalog, Study = window.CifraStudy;
+  const DB = window.CifraDB, Catalog = window.CifraCatalog, Study = window.CifraStudy, ChartSource=window.CifraChartSource;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '7';
+  const APP_VERSION = '8';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -184,6 +184,33 @@
     if (remove.size) { store.queue = store.queue.filter(q => !remove.has(q.trackId)); await save(); }
   }
   let resolveTicket = 0;
+  let onlineTicket=0,onlineController,onlineBusyId='';
+  function cancelOnlineChart(){++onlineTicket;onlineController?.abort();onlineBusyId='';$('#chart-status').hidden=true;}
+  async function lookupOnlineChart(force=false) {
+    const track=S.track;
+    if(!track||S.demo||S.viewingId)return;
+    if(!force && (store.settings.autoCharts===false||S.trackSong?.kind==='personal'))return;
+    if(onlineBusyId===track.id)return;
+    const ticket=++onlineTicket;onlineController?.abort();onlineController=new AbortController();
+    onlineBusyId=track.id;
+    const notice=$('#chart-status');notice.textContent='Buscando cifra com letra…';notice.hidden=false;
+    try{
+      const result=await ChartSource.lookup(track,{signal:onlineController.signal,force});
+      if(ticket!==onlineTicket||S.track?.id!==track.id)return;
+      await persistQueue;
+      const existing=await DB.find(track.id,C.normKey(track.artist,track.title));
+      // A personal edit made while the request was running always wins.
+      if(existing?.kind==='personal' && !force){notice.hidden=true;return;}
+      const song=newSong(result.title,result.artist,result.sheet,track.id);
+      Object.assign(song,{source:result.source,sourceUrl:result.sourceUrl,origin:result.origin,tonic:result.tonic});
+      if(!(await save())){delete store.songs[song.id];throw new Error('Não consegui salvar a cifra no aparelho.');}
+      if(ticket!==onlineTicket||S.track?.id!==track.id)return;
+      S.trackSong=song;notice.textContent='Cifra com letra salva no aparelho · Cifra Club';
+      if(!S.viewingId){render();Study.loadLyrics(track,song);}
+      await pruneQueue();
+    }catch(e){if(ticket===onlineTicket){notice.textContent=e.name==='AbortError'?'A consulta demorou demais. Toque em Buscar cifra com letra para tentar novamente.':e.message||'Não consegui buscar a cifra com letra.';notice.hidden=!!e.quiet;}}
+    finally{if(ticket===onlineTicket)onlineBusyId='';}
+  }
   async function resolveTrackSong() {
     const ticket=++resolveTicket, track=S.track;
     if (!track) { S.trackSong=null; S.loadingChart=false; Study.loadLyrics(null,currentSong()); return; }
@@ -194,6 +221,7 @@
       S.trackSong=song; S.loadingChart=false;
       render();
       if(!S.viewingId) Study.loadLyrics(track,song);
+      lookupOnlineChart();
     } catch { if(ticket===resolveTicket){S.loadingChart=false;S.trackSong=null;S.catalogMessage='Não consegui ler a biblioteca local.';render();} }
   }
 
@@ -384,6 +412,7 @@
     const changed = (track && track.id) !== (S.track && S.track.id);
     S.track = track;
     if (changed) {
+      cancelOnlineChart();
       S.recording = false;
       S.trackSong = null;
       if (!S.viewingId) Study.clear();
@@ -482,7 +511,7 @@
     el.empty.hidden = true;
     el.sheet.hidden = false;
     const tr = C.transposeSheet(song.sheet, song.transpose || 0);
-    S.keyName = song.tonic ? C.transposeNote(song.tonic, song.transpose || 0, false) : tr.key;
+    S.keyName = song.tonic ? C.transposeSheet(song.tonic, song.transpose || 0).text : tr.key;
     S.lines = tr.text.split('\n');
     S.types = S.lines.map((l) => C.classifyLine(l));
     S.units = C.computeUnits(S.types);
@@ -781,6 +810,7 @@
     if (!id || !store.songs[id]) return;
     if (!confirm('Excluir esta cifra?')) return;
     await persistQueue;
+    if(store.songs[id].origin==='online-chart')await ChartSource.decline(store.songs[id]);
     await DB.remove(id);
     delete store.songs[id];
     if (S.trackSong?.id === id) S.trackSong = null;
@@ -1216,6 +1246,7 @@
       el.scroller.scrollTop = 0;
       render();
       Study.loadLyrics(S.track,S.trackSong);
+      lookupOnlineChart();
     });
 
     // editor
@@ -1378,7 +1409,7 @@
 
   async function boot() {
     if (versionMismatch()) return;
-    if(S.versionWarn || !DB || !Catalog || !Study){
+    if(S.versionWarn || !DB || !Catalog || !Study || !ChartSource){
       el.empty.hidden=false;el.empty.innerHTML='<h2>Atualização incompleta</h2><p>Seus dados foram mantidos. Reabra o aplicativo após a publicação terminar.</p><button class="btn" id="retry-update">Recarregar</button>';
       $('#retry-update').onclick=()=>location.reload();return;
     }
@@ -1395,7 +1426,9 @@
     }catch(e){el.empty.innerHTML='<h2>Biblioteca indisponível</h2><p>Seus dados anteriores foram mantidos. Confira o espaço disponível e reabra o app.</p>';return;}
     applyTheme();
     measureCharRatio();
-    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),lookupChart:()=>lookupOnlineChart(true),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    $('#m-auto-charts').checked=store.settings.autoCharts!==false;
+    $('#m-auto-charts').onchange=e=>{store.settings.autoCharts=e.target.checked;save();if(e.target.checked)lookupOnlineChart();else cancelOnlineChart();};
     bind();
     try{await Catalog.seed();}catch{toast('Biblioteca inicial não carregada. Suas cifras salvas continuam disponíveis.',5000);}
     try { await handleRedirect(); } catch (e) { toast('Erro no login: ' + e.message, 5000); }

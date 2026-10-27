@@ -250,7 +250,8 @@
   const slug = (s) => fold(s).replace(/&/g, ' e ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
   function cifraClubUrl(artist, title) {
-    const a = slug(firstArtist(artist)), t = slug(baseTitle(title));
+    const stripQuotes=s=>String(s||'').replace(/['’‘]/g,'');
+    const a = slug(stripQuotes(firstArtist(artist))), t = slug(stripQuotes(baseTitle(title)));
     return a && t ? `https://www.cifraclub.com.br/${a}/${t}/` : 'https://www.cifraclub.com.br/';
   }
   function googleUrl(artist, title) {

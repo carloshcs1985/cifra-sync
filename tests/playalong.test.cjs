@@ -27,3 +27,13 @@ test('imported chord placement is retained only for matching lyric text',()=>{
  const aligned=P.alignLyrics(chart,[{text:'Frase de estudo'},{text:'Não corresponde'},{text:'Outra frase original'},{text:'Frase de estudo'}],C);
  assert.equal(aligned[0].chords,'C            G');assert.equal(aligned[1],null);assert.equal(aligned[2].chords,'Am        F');assert.equal(aligned[3].text,'Frase de estudo!');
 });
+test('complete chart keeps its own lyric lines and chord columns across blank source lines',()=>{
+ const blocks=P.chartRows('[Verso]\nC       G\n\nFrase original\nAm    F\nOutra frase\nParte 1 de 2\nE|---0---1---|',C);
+ assert.equal(blocks.length,2);assert.equal(blocks[0].chords,'C       G');assert.equal(blocks[0].chordLine,1);assert.equal(blocks[1].section,'[Verso]');
+});
+test('LRC can join or split source phrases without inventing per-word or per-chord times',()=>{
+ const blocks=[{text:'Frase original'},{text:'para estudar'},{text:'Outro trecho completo'},{text:'Tenho vinte e três anos'},{text:'Unmatched content'}];
+ const lyrics=[{text:'Frase original para estudar',t:1000},{text:'Outro trecho',t:5000},{text:'completo',t:6500},{text:'Tenho vinte e três anos',t:9000}];
+ const links=P.matchChartLyrics(blocks,lyrics,C);assert.deepEqual(links,[{start:0,end:0},{start:0,end:0},{start:1,end:2},{start:3,end:3},null]);
+ const numeric=P.matchChartLyrics([{text:'An original phrase at twenty-three'}],[{text:'An original phrase at 23'}],C);assert.deepEqual(numeric,[{start:0,end:0}]);
+});

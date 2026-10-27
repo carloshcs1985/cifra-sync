@@ -1,5 +1,5 @@
 /* Leitura incremental em worker: JSONL/gzip e ZIP não bloqueiam a tela. */
-importScripts('core.js?v=7', 'playalong-core.js?v=7', 'storage.js?v=7', 'vendor/fflate.min.js');
+importScripts('core.js?v=8', 'playalong-core.js?v=8', 'storage.js?v=8', 'vendor/fflate.min.js');
 const C = self.CifraCore, DB = self.CifraDB;
 let batch = [], received = 0, written = 0, total = 0, ignored = 0;
 async function flush() {

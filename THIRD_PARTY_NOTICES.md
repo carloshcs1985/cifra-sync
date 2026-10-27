@@ -52,3 +52,9 @@ Foram identificadas 293 entradas da fonte de Red Hot Chili Peppers, Nirvana e No
 Scar Tissue, Red Hot Chili Peppers: guia da harmonia principal, sem letra, riff, contagem integral de repetições ou tempos. Referência: https://www.cifraclub.com.br/red-hot-chili-peppers/scar-tissue/ .
 
 Smells Like Teen Spirit, Nirvana: guia do ciclo principal de power chords, sem letra, solo, arranjo integral ou tempos. Referência: https://www.cifraclub.com.br/nirvana/smells-like-teen-spirit/ . Os IDs de álbum/compilação foram conferidos em páginas públicas do Spotify. O reconhecimento também consulta artista/título e distingue versões ao vivo/acústicas.
+
+## Consulta de cifra com letra na versão 8
+
+A cifra pública é consultada por faixa no Cifra Club (https://www.cifraclub.com.br/) usando o Jina Reader (https://jina.ai/reader/), formato HTML. O app extrai o conteúdo da cifra e metadados, preserva a atribuição e guarda o resultado apenas no armazenamento local. Nenhum HTML remoto é inserido na interface; scripts e recursos da página não são executados. A autorização do Spotify e cookies não são enviados ao serviço. A opção pode ser desativada no menu.
+
+O código do app não distribui essas cifras. As páginas e os serviços externos podem mudar ou ficar indisponíveis. Não é utilizada autenticação da conta do usuário nesses sites e não se acessam páginas que dependam de login ou assinatura.

@@ -131,7 +131,7 @@
         lyrics = cached; setStatus(cached.lines.length ? 'Letra com tempos · '+cached.source : 'Letra sem tempos · '+cached.source); renderLyrics(); return;
       }
       if (!track || ctx.demo() || ctx.settings().autoLyrics === false) { setStatus(ownLines.length?'Letra da sua cifra · sem tempos de voz':'Importe um LRC ou ative a consulta de letra no menu'); renderLyrics(); return; }
-      if (cached?.missing && Date.now()-cached.at < 24*3600000) { setStatus('Sem letra correspondente no serviço · você pode importar um LRC'); renderLyrics(); return; }
+      if (cached?.missing && Date.now()-cached.at < 24*3600000) { setStatus(ownLines.length?'Cifra com letra salva · tempos da voz indisponíveis':'Sem letra correspondente no serviço · você pode importar um LRC'); renderLyrics(); return; }
       setStatus('Consultando letra no LRCLIB…'); renderLyrics();
       controller = new AbortController(); const ownController = controller, signal = ownController.signal;
       const timer = setTimeout(() => ownController.abort(), 10000);
@@ -144,7 +144,7 @@
           response=await fetch('https://lrclib.net/api/get?' + params, { signal });
         }
         if (ticket !== requestId) return;
-        if (response.status === 404) { await DB.lyrics(id, { missing:true, at:Date.now() }); setStatus('Sem letra correspondente no serviço · importe um LRC'); renderLyrics(); return; }
+        if (response.status === 404) { await DB.lyrics(id, { missing:true, at:Date.now() }); setStatus(ownLines.length?'Cifra com letra salva · tempos da voz indisponíveis':'Sem letra correspondente no serviço · importe um LRC'); renderLyrics(); return; }
         if (!response.ok) throw new Error('Serviço de letras indisponível.');
         const result = await response.json();
         if (ticket !== requestId) return;
@@ -158,7 +158,7 @@
       } finally { clearTimeout(timer); }
     } catch (e) {
       if (ticket !== requestId) return;
-      setStatus(e.name==='AbortError' ? 'Consulta de letra interrompida · tente novamente no menu' : 'Letra não carregada · confira a conexão ou importe um LRC'); renderLyrics();
+      setStatus(ownLines.length?'Cifra com letra salva · não consegui consultar os tempos da voz':e.name==='AbortError' ? 'Consulta de letra interrompida · tente novamente no menu' : 'Letra não carregada · confira a conexão ou importe um LRC'); renderLyrics();
     }
   }
   function updateStrip(ms) {

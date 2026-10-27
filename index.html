@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://lrclib.net; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://r.jina.ai; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0e0d0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="7">
-<link rel="stylesheet" href="styles.css?v=7">
+<meta name="app-version" content="8">
+<link rel="stylesheet" href="styles.css?v=8">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -36,6 +36,7 @@
   <section id="study-bar" aria-label="Área de estudo">
     <div class="study-tabs"><button data-study-mode="together" aria-pressed="true">Juntos</button><button data-study-mode="sheet" aria-pressed="false">Cifra</button><button data-study-mode="lyrics" aria-pressed="false">Letra</button><button data-study-mode="chords" aria-pressed="false">Acordes</button></div>
     <div id="study-status" role="status">Biblioteca de estudo</div>
+    <div id="chart-status" role="status" hidden></div>
     <div id="lyric-strip" hidden><strong id="lyric-current"></strong><span id="lyric-next"></span></div>
   </section>
   <div id="chordbar" hidden aria-label="Diagramas dos acordes do trecho"></div>
@@ -136,6 +137,7 @@
     </div>
 
     <h4>Estudo e letras</h4>
+    <div class="group"><label class="item"><span>Buscar cifra com letra automaticamente<br><span class="sub">Cifra Club via Jina Reader · consulta por faixa</span></span><input type="checkbox" id="m-auto-charts" checked></label></div>
     <div class="group">
       <label class="item"><span>Consultar letra automaticamente no LRCLIB</span><input type="checkbox" id="m-auto-lyrics" checked></label>
       <label class="item"><span>Mostrar trecho da letra sobre a cifra</span><input type="checkbox" id="m-lyric-strip" checked></label>
@@ -258,13 +260,14 @@
 <input type="file" id="import-songs" accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,.json,.jsonl,.gz,.zip,.lrc,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=7"></script>
-<script src="study-core.js?v=7"></script>
-<script src="playalong-core.js?v=7"></script>
-<script src="storage.js?v=7"></script>
-<script src="catalog.js?v=7"></script>
-<script src="together.js?v=7"></script>
-<script src="study.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="core.js?v=8"></script>
+<script src="study-core.js?v=8"></script>
+<script src="playalong-core.js?v=8"></script>
+<script src="storage.js?v=8"></script>
+<script src="catalog.js?v=8"></script>
+<script src="chart-source.js?v=8"></script>
+<script src="together.js?v=8"></script>
+<script src="study.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

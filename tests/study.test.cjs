@@ -26,3 +26,7 @@ test('ChordPro retains imported lyric alignment and multiple songs',()=>{
  const songs=C.parseImportFile('exercicios.cho','{title: Estudo Um}\n{artist: Autor do Teste}\n[C]Frase [Am]original\n{new_song}\n{title: Estudo Dois}\n{artist: Autor do Teste}\n[D]Outra frase [G]original');
  assert.equal(songs.length,2);assert(songs.every(s=>s.hasChords));assert(songs[0].sheet.includes('Frase'));
 });
+test('Cifra Club paths omit apostrophes rather than adding incorrect hyphens',()=>{
+ assert.equal(C.cifraClubUrl('No Doubt',"Don't Speak"),'https://www.cifraclub.com.br/no-doubt/dont-speak/');
+ assert.equal(C.cifraClubUrl('blink-182',"What's My Age Again?"),'https://www.cifraclub.com.br/blink-182/whats-my-age-again/');
+});

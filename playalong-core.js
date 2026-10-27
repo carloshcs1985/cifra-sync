@@ -69,5 +69,35 @@
       return found||null;
     });
   }
-  return {events,signature,normalizeTiming,timeline,cueIndex,groupCues,alignLyrics};
+  function chartRows(sheet,C) {
+    const source=String(sheet||'').split('\n'),out=[];let section='';
+    source.forEach((text,line)=>{
+      const type=C.classifyLine(text);
+      if(type==='section'&&!/\[tab\b/i.test(text))section=text.trim();
+      if(type!=='lyric'||!text.trim()||/^\s*(?:Parte\s+\d+\s+de\s+\d+|Tom\s*:|Afina[çc][aã]o\s*:)/i.test(text))return;
+      let before=line-1;while(before>=0&&!source[before].trim())before--;
+      const chordLine=before>=0&&C.classifyLine(source[before])==='chords'?before:-1;
+      out.push({text,line,chords:chordLine>=0?source[chordLine]:'',chordLine,section});
+    });return out;
+  }
+  function matchChartLyrics(blocks,lyrics,C) {
+    const units={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+    const tens={twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+    const norm=text=>C.fold(text).replace(/[^a-z0-9]+/g,' ').trim().replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:\s+(one|two|three|four|five|six|seven|eight|nine))?\b/g,(_,a,b)=>String(tens[a]+(units[b]||0)));
+    const result=blocks.map(()=>null),bt=blocks.map(b=>norm(b.text)),lt=lyrics.map(l=>norm(l.text));
+    let cursor=0;
+    for(let i=0;i<lyrics.length;i++){
+      if(!lt[i])continue;let found;
+      for(let b=cursor;b<Math.min(blocks.length,cursor+12)&&!found;b++){
+        for(let bn=1;bn<=3&&b+bn<=blocks.length&&!found;bn++){
+          const left=bt.slice(b,b+bn).join(' ');
+          for(let ln=1;ln<=3&&i+ln<=lyrics.length;ln++){
+            if(left===lt.slice(i,i+ln).join(' ')){found={b,bn,ln};break;}
+          }
+        }
+      }
+      if(found){for(let b=found.b;b<found.b+found.bn;b++)result[b]={start:i,end:i+found.ln-1};cursor=found.b+found.bn;i+=found.ln-1;}
+    }return result;
+  }
+  return {events,signature,normalizeTiming,timeline,cueIndex,groupCues,alignLyrics,chartRows,matchChartLyrics};
 });
