@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '12';
+  const APP_VERSION = '13';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -644,7 +644,7 @@
 
     const sc = el.scroller;
     if (Math.abs(sc.scrollTop - S.scrollF) > 3) S.scrollF = sc.scrollTop; // a pessoa rolou
-    const holding = now < S.holdUntil;
+    const holding = S.recording || now < S.holdUntil;
     if (Study.frame(S.viewingId ? 0 : p, holding)) { setResume(holding); return; }
     if (Study.mode() === 'chords') { setResume(false); return; }
     const maxScroll = Math.max(0, sc.scrollHeight - sc.clientHeight);
@@ -699,6 +699,12 @@
     const e = S.els[i];
     if (e) { e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); }
   }
+  function alignHere(i) {
+    if(!S.isPlaying){toast('Dê play e toque no trecho que está ouvindo.');return;}
+    if(!Number.isInteger(i)||!S.els[i])return;
+    addAnchor(i);S.recording=false;S.holdUntil=0;S.curUnit=-1;updateChrome();
+    toast('Rolagem ajustada a partir deste trecho.');
+  }
   function undoAnchor() {
     const song = currentSong();
     const a = S.undo.pop();
@@ -737,9 +743,9 @@
     $('#font-down').disabled = $('#font-up').disabled = !song && !['lyrics','together'].includes(Study.mode());
 
     el.btnRec.hidden = mode !== 'spotify';
-    el.btnRec.disabled = !syncing() || Study.mode() !== 'sheet';
+    el.btnRec.disabled = !syncing() || !['sheet','together'].includes(Study.mode());
     el.btnRec.classList.toggle('on', S.recording);
-    el.btnRec.textContent = S.recording ? '● Gravando' : '● Marcar';
+    el.btnRec.textContent = S.recording ? 'Toque no trecho' : 'Ajustar rolagem';
     el.recBar.hidden = !S.recording;
     document.body.classList.toggle('recording', S.recording);
 
@@ -1195,11 +1201,11 @@
       if (!syncing()) { toast('Dê play nesta música no Spotify para marcar.'); return; }
       S.recording = !S.recording;
       S.undo = [];
-      if (S.recording) { markAnchors(); if (!S.isPlaying) toast('Dê play e toque em cada linha quando ela começar.', 4000); }
+      if (S.recording) { markAnchors(); S.holdUntil=0; toast('Toque na frase que está sendo cantada agora.', 4000); } else S.holdUntil=0;
       updateChrome();
     });
     $('#rec-done').addEventListener('click', () => {
-      S.recording = false;
+      S.recording = false;S.holdUntil=0;
       const n = (currentSong() && currentSong().anchors.length) || 0;
       toast(n ? `${n} marcação(ões) salva(s).` : 'Nenhuma marcação.');
       updateChrome();
@@ -1210,7 +1216,7 @@
       const ln = e.target.closest('.ln');
       if (!ln) return;
       const i = +ln.dataset.i;
-      if (S.recording) { addAnchor(i); return; }
+      if (S.recording) { alignHere(i); return; }
       const now = performance.now();
       if (S.lastTap.i === i && now - S.lastTap.at < 400) { S.lastTap = { i: -1, at: 0 }; jumpToLine(i); }
       else S.lastTap = { i, at: now };
@@ -1437,7 +1443,7 @@
     }catch(e){el.empty.innerHTML='<h2>Biblioteca indisponível</h2><p>Seus dados anteriores foram mantidos. Confira o espaço disponível e reabra o app.</p>';return;}
     applyTheme();
     measureCharRatio();
-    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),lookupChart:()=>lookupOnlineChart(true),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,sheetReady:()=>{if(!el.sheet.hidden)applyFont();},resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),lookupChart:()=>lookupOnlineChart(true),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,alignHere,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,sheetReady:()=>{if(!el.sheet.hidden)applyFont();},resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
     $('#m-auto-charts').checked=store.settings.autoCharts!==false;
     $('#m-auto-charts').onchange=e=>{store.settings.autoCharts=e.target.checked;save();if(e.target.checked)lookupOnlineChart();else cancelOnlineChart();};
     bind();

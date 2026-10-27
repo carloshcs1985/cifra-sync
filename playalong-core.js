@@ -115,7 +115,7 @@
     }
     // Personal line anchors replace automatic anchors at the same source position.
     const personal=song?.anchors||[],anchored=new Set(personal.map(a=>a.line));
-    const reading=C.buildTimeline([...automatic.filter(a=>!anchored.has(a.line)),...personal],units.cum,units.total,duration);
+    const reading=C.buildTimeline(personal.length?personal:[...automatic.filter(a=>!anchored.has(a.line)),...personal],units.cum,units.total,duration);
     const original=events(text,C),display=events(C.transposeSheet(text,song?.transpose||0).text,C);
     const guide=original.map((event,i)=>{
       const next=source[event.line+1]||'',paired=C.classifyLine(next)==='lyric';
@@ -125,7 +125,7 @@
       const w=units.cum[line]+(units.w[line]||0)*fraction;
       return {...event,chord:display[i]?.chord||event.chord,t:C.timeAt(w,reading)||0,source:'structure',estimated:true};
     });
-    for(const group of groups){
+    for(const group of personal.length?[]:groups){
       const start=lines[group.start].t,end=lines[group.end+1]?.t??duration;
       if(!(end>start))continue;
       const total=group.rows.reduce((n,i)=>n+Math.max(1,rows[i].text.trim().length),0);let offset=0;
@@ -153,13 +153,13 @@
       }
       for(const cue of saved)Object.assign(guide[cue.event],{t:cue.t,source:'saved',estimated:false});
     }
-    return {events:duration?guide:[],rows,links,lyrics:lines,units,reading,duration};
+    return {events:duration?guide:[],rows,links,lyrics:lines,units,reading,duration,manual:personal.length>0};
   }
   function playbackAt(plan, ms, C) {
     if(!plan)return null;
     const index=cueIndex(plan.events,ms),current=plan.events[index]||null,next=plan.events[index+1]||null;
     const lyric=cueIndex(plan.lyrics,ms),matched=[];
-    plan.links.forEach((link,i)=>{if(link&&lyric>=link.start&&lyric<=link.end)matched.push(i);});
+    plan.links.forEach((link,i)=>{if(!plan.manual&&link&&lyric>=link.start&&lyric<=link.end)matched.push(i);});
     const w=C.positionAt(ms,plan.reading),line=C.unitAt(w,plan.units);
     if(!matched.length){
       let row=-1;plan.rows.forEach((r,i)=>{if((r.chordLine>=0?r.chordLine:r.line)<=line)row=i;});

@@ -126,6 +126,8 @@
   function init(context) {
     ctx=context;
     $('#together-view').onclick=e=>{
+      if(ctx.recording()){const row=e.target.closest('[data-together-line]');if(row){const source=plan?.rows[+row.dataset.togetherLine];if(source)ctx.alignHere(source.line);else ctx.notify('Use a aba Cifra para marcar este trecho.');}return;}
+
       const action=e.target.closest('[data-together]')?.dataset.together;
       if(action==='sync')openSync();if(action==='import')$('#import-songs').click();
       if(action==='lookup')ctx.lookupChart();
