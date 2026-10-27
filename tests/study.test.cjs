@@ -30,3 +30,15 @@ test('Cifra Club paths omit apostrophes rather than adding incorrect hyphens',()
  assert.equal(C.cifraClubUrl('No Doubt',"Don't Speak"),'https://www.cifraclub.com.br/no-doubt/dont-speak/');
  assert.equal(C.cifraClubUrl('blink-182',"What's My Age Again?"),'https://www.cifraclub.com.br/blink-182/whats-my-age-again/');
 });
+test('generic chord charts can accompany a live title without relaxing lyric timing matching',()=>{
+ assert.equal(H.chartMatch('Sujeito - Ao Vivo','Sujeito'),'general');
+ assert.equal(H.chartMatch('Sujeito (Ao Vivo)','Sujeito'),'general');
+ assert.equal(H.chartMatch('Sujeito','Sujeito'),'exact');
+ assert.equal(H.chartMatch('Sujeito (Remastered 2025)','Sujeito'),'exact');
+ assert.equal(H.chartMatch('Sujeito - Remix','Sujeito'),null);
+ assert.equal(H.chartMatch('Sujeito - Acústico','Sujeito'),null);
+ assert.equal(H.chartMatch('Sujeito De Sorte - Ao Vivo','Sujeito'),null);
+ assert.equal(H.chartMatch('Outra Música - Ao Vivo','Sujeito'),null);
+ assert.equal(H.chartMatch('Sujeito','Sujeito - Ao Vivo'),null);
+ assert(!H.matchLyrics({title:'Sujeito - Ao Vivo',artist:'Gusttavo Lima',duration:200000},{trackName:'Sujeito',artistName:'Gusttavo Lima',duration:200}));
+});

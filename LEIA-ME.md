@@ -1,6 +1,12 @@
-# Cifra Sync · Estudo 10
+# Cifra Sync · Estudo 11
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Correção de cifras ao vivo na versão 11
+
+“Sujeito - Ao Vivo”, de Gusttavo Lima, pode usar a cifra geral “Sujeito” do Cifra Club. A importação aceita somente o sufixo explícito Ao Vivo/Live quando artista e título-base correspondem e a página não especifica outra versão. O leitor mostra **Cifra geral: confira o arranjo da versão ao vivo**. Remix, acústico, outra composição ou outro artista continuam rejeitados nesse fallback. A validação de LRC e tempos por gravação permanece estrita; nenhuma marcação de outra gravação é reaproveitada por essa alteração.
+
+Links oficiais em cifraclub.com, cifraclub.com.br e suas versões www são normalizados para a mesma origem HTTPS. Falhas antigas da validação anterior são consultadas novamente uma vez; cifras pessoais e a preferência de não recriar uma cifra removida são preservadas.
 
 ## Tablatura e instrumentos na versão 10
 
@@ -71,7 +77,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 10**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 11**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 

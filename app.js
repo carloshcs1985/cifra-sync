@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '10';
+  const APP_VERSION = '11';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -202,7 +202,7 @@
       // A personal edit made while the request was running always wins.
       if(existing?.kind==='personal' && !force){notice.hidden=true;return;}
       const song=newSong(result.title,result.artist,result.sheet,track.id);
-      Object.assign(song,{source:result.source,sourceUrl:result.sourceUrl,origin:result.origin,tonic:result.tonic});
+      Object.assign(song,{source:result.source,sourceUrl:result.sourceUrl,origin:result.origin,tonic:result.tonic,versionMatch:result.versionMatch});
       if(!(await save())){delete store.songs[song.id];throw new Error('Não consegui salvar a cifra no aparelho.');}
       if(ticket!==onlineTicket||S.track?.id!==track.id)return;
       S.trackSong=song;notice.textContent='Cifra com letra salva no aparelho · Cifra Club';
@@ -484,6 +484,7 @@
 
   function renderHeader() {
     const song = currentSong();
+    const versionNote=$('#chart-version-note');versionNote.hidden=song?.versionMatch!=='general';versionNote.textContent=versionNote.hidden?'':'Cifra geral: confira o arranjo da versão ao vivo.';
     if (S.viewingId && song) {
       el.title.textContent = song.title;
       el.artist.textContent = song.artist || '—';

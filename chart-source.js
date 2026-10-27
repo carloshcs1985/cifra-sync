@@ -5,9 +5,9 @@
   const ROOT='https://www.cifraclub.com.br',READER='https://r.jina.ai/';
   let cooldown=0;
   function sourceUrl(value) {
-    try{const u=new URL(value,ROOT);if(u.protocol!=='https:'||u.hostname!=='www.cifraclub.com.br'||u.username||u.password||u.port)return null;
-      if(!/^\/[a-z0-9-]+\/[a-z0-9-]+\/$/.test(u.pathname))return null;
-      return ROOT+u.pathname;
+    try{const u=new URL(value,ROOT);if(u.protocol!=='https:'||!['www.cifraclub.com.br','cifraclub.com.br','www.cifraclub.com','cifraclub.com'].includes(u.hostname)||u.username||u.password||u.port)return null;
+      if(!/^\/[a-z0-9-]+\/[a-z0-9-]+\/?$/.test(u.pathname))return null;
+      return ROOT+u.pathname.replace(/\/?$/,'/');
     }catch{return null;}
   }
   function documentFrom(html) {
@@ -29,13 +29,14 @@
     const title=doc.querySelector('h1')?.textContent.trim()||'';
     const artist=String(track.artist||'').split(',')[0].trim();
     const author=[...doc.querySelectorAll('h2')].find(n=>H.identity(n.textContent)===H.identity(artist));
-    if(!pre||!author||H.identity(title)!==H.identity(track.title)||H.variant(title)!==H.variant(track.title))throw new Error('Não encontrei uma cifra completa correspondente.');
+    const versionMatch=H.chartMatch(track.title,title);
+    if(!pre||!author||!versionMatch)throw new Error('Não encontrei uma cifra completa correspondente.');
     const sheet=C.cleanPasted(plain(pre)),lines=sheet.split('\n');
     if(sheet.length>200000||lines.filter(l=>C.classifyLine(l)==='chords').length<2||lines.filter(l=>C.classifyLine(l)==='lyric').length<3)throw new Error('A página não contém letra e acordes suficientes.');
     const tone=doc.querySelector('[data-anchor="--chord-tone"]')?.textContent.trim();
     const canonical=sourceUrl(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')||safe);
     if(!canonical||new URL(canonical).pathname.split('/')[1]!==new URL(safe).pathname.split('/')[1])throw new Error('A página retornou outro artista.');
-    return {title,artist,sheet,tonic:/^[A-G][#b]?m?$/.test(tone||'')?tone:null,source:'Cifra Club',sourceUrl:canonical,origin:'online-chart'};
+    return {title,artist,sheet,versionMatch,tonic:/^[A-G][#b]?m?$/.test(tone||'')?tone:null,source:'Cifra Club',sourceUrl:canonical,origin:'online-chart'};
   }
   async function read(url,signal) {
     if(Date.now()<cooldown)throw new Error('Consulta temporariamente limitada. Tente novamente em alguns minutos.');
@@ -54,27 +55,27 @@
     if(!track?.title||!track?.artist)throw new Error('Escolha uma música primeiro.');
     const key='chart-lookup:'+C.normKey(track.artist,track.title)+'|'+H.variant(track.title),saved=await DB.meta(key);
     if(!force && saved?.declined)throw Object.assign(new Error('Consulta automática desativada para esta cifra removida.'),{quiet:true});
-    if(!force && saved?.missing && Date.now()-saved.at<6*3600000)throw new Error('Não encontrei uma cifra correspondente nesta consulta.');
+    if(!force && saved?.missing && saved.matcherVersion===2 && Date.now()-saved.at<6*3600000)throw new Error('Não encontrei uma cifra correspondente nesta consulta.');
     const base=C.cifraClubUrl(track.artist,track.title),urls=[saved?.url];
     if(/[?!]\s*$/.test(C.baseTitle(track.title)))urls.push(base.replace(/\/$/,'-/'));
     urls.push(base);
     let last;
     for(const url of [...new Set(urls.filter(Boolean))]){
       if(signal?.aborted)throw new DOMException('Consulta interrompida','AbortError');
-      try{const chart=parse(await read(url,signal),track,url);await DB.meta(key,{url:chart.sourceUrl,at:Date.now()});return chart;}
+      try{const chart=parse(await read(url,signal),track,url);await DB.meta(key,{url:chart.sourceUrl,matcherVersion:2,at:Date.now()});return chart;}
       catch(e){if(e.name==='AbortError'||e.blocked||Date.now()<cooldown)throw e;last=e;}
     }
-    await DB.meta(key,{missing:true,at:Date.now()});throw last||new Error('Não encontrei a cifra com letra.');
+    await DB.meta(key,{missing:true,matcherVersion:2,at:Date.now()});throw last||new Error('Não encontrei a cifra com letra.');
   }
   function parseTab(html,track,url,instrument='guitarra') {
     const safe=sourceUrl(url);if(!safe)throw new Error('Link de tablatura inválido.');
     const doc=documentFrom(html),artist=String(track.artist||'').split(',')[0].trim(),title=doc.querySelector('h1')?.textContent.trim()||'';
-    if(![...doc.querySelectorAll('h2')].some(n=>H.identity(n.textContent)===H.identity(artist))||H.identity(title)!==H.identity(track.title)||H.variant(title)!==H.variant(track.title))throw new Error('A página não corresponde à faixa.');
+    if(![...doc.querySelectorAll('h2')].some(n=>H.identity(n.textContent)===H.identity(artist))||!H.chartMatch(track.title,title))throw new Error('A página não corresponde à faixa.');
     const canonical=sourceUrl(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')||safe);
     if(!canonical||new URL(canonical).pathname.split('/')[1]!==new URL(safe).pathname.split('/')[1])throw new Error('A página retornou outro artista.');
     const pre=doc.querySelector('pre[data-chord-content],.cifra_cnt pre,article pre');if(!pre)throw new Error('A página não contém tablatura textual.');
     const body=C.cleanPasted(plain(pre));if(!window.CifraTabsCore.extract(body).some(b=>window.CifraTabsCore.compatible(b,instrument)))throw new Error(instrument==='cavaquinho'?'Não encontrei tablatura de 4 cordas D G B D. Importe uma versão para cavaquinho.':'A página não contém blocos de tablatura de 6 cordas.');
-    return {title,artist,body,instrument,source:'Cifra Club',sourceUrl:canonical};
+    return {title,artist,body,instrument,versionMatch:H.chartMatch(track.title,title),source:'Cifra Club',sourceUrl:canonical};
   }
   async function lookupTab(track,{instrument='guitarra',signal}={}) {
     if(!track?.title||!track?.artist)throw new Error('Dê play em uma música primeiro.');

@@ -1,5 +1,5 @@
 /* Leitura incremental em worker: JSONL/gzip e ZIP não bloqueiam a tela. */
-importScripts('core.js?v=10', 'playalong-core.js?v=10', 'tabs-core.js?v=10', 'storage.js?v=10', 'vendor/fflate.min.js');
+importScripts('core.js?v=11', 'playalong-core.js?v=11', 'tabs-core.js?v=11', 'storage.js?v=11', 'vendor/fflate.min.js');
 const C = self.CifraCore, DB = self.CifraDB;
 let importInstrument='guitarra';
 let batch = [], received = 0, written = 0, total = 0, ignored = 0;
