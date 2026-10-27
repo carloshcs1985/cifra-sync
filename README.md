@@ -1,6 +1,20 @@
-# Cifra Sync · Estudo 14
+# Cifra Sync · Estudo 15
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Tablaturas Songsterr na versão 15
+
+A barra principal fica **Juntos / Cifras / Tablaturas**. **Letra da música** e **Diagramas de acordes** continuam em **Menu → Leituras de estudo**. Juntos e Cifras mantêm seus leitores, diagramas, buscas e marcações anteriores.
+
+Na aba **Tablaturas**, **Songsterr** abre o leitor que foi validado no laboratório. Usa a conexão Spotify do próprio Cifra Sync, seus controles de reprodução e sua letra/LRC atual; não exige outro Client ID, Redirect URI ou login. A busca parte de artista e título base, prefere a versão correspondente e recomenda uma guitarra com notas. Outras versões e instrumentos ficam disponíveis. A consulta de metadados passa pelo Jina Reader, e as notas são lidas diretamente da fonte. Nenhum token ou segredo segue para essas fontes.
+
+Toque em **Este compasso começa agora** ao ouvir a entrada correspondente. Uma segunda marcação ajusta a velocidade média. A frase atual e a próxima acompanham os tempos da letra; após marcar, os trechos aparecem abaixo dos compassos em posições **estimadas**. As marcações do Songsterr são temporárias e separadas das marcações salvas das cifras; trocar de gravação/pista ou recarregar exige novo ajuste. Não é sincronização exata de cada nota, e arranjos/repetições podem variar.
+
+**Meus arquivos / exercícios** preserva a biblioteca anterior: importação, exportação, nove exercícios e marcações locais continuam disponíveis. Para cavaquinho, use essa biblioteca; uma pista de guitarra/baixo do Songsterr não é convertida para cavaquinho. A fonte usa sua própria afinação.
+
+O leitor Songsterr é carregado somente ao entrar nessa opção. Ao sair dela, novas consultas são interrompidas. Uma falha da fonte mostra o aviso no leitor e permite continuar nos arquivos locais, em Juntos ou em Cifras. Ele não altera o banco pessoal, não registra outro service worker e não faz outra consulta/login Spotify. Letra é compartilhada pelo próprio aplicativo, respeitando suas preferências e arquivos importados. A interface continua gratuita e estática no GitHub Pages. Consultas Songsterr exigem internet; suas transcrições não são persistidas ou exportadas.
+
+O laboratório separado permanece em `lab/songsterr/`. A versão 14 está preservada no histórico Git para retorno do código, sem necessidade de apagar dados do navegador. Não limpe os dados do site para atualizar: reabra o app e confira **Menu → versão 15**.
 
 ## Remover catálogo na versão 14
 
@@ -88,7 +102,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 14**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 15**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 
@@ -139,3 +153,4 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
 Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `chart-source.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
+

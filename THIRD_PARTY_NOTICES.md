@@ -58,3 +58,9 @@ Smells Like Teen Spirit, Nirvana: guia do ciclo principal de power chords, sem l
 A cifra pública é consultada por faixa no Cifra Club (https://www.cifraclub.com.br/) usando o Jina Reader (https://jina.ai/reader/), formato HTML. O app extrai o conteúdo da cifra e metadados, preserva a atribuição e guarda o resultado apenas no armazenamento local. Nenhum HTML remoto é inserido na interface; scripts e recursos da página não são executados. A autorização do Spotify e cookies não são enviados ao serviço. A opção pode ser desativada no menu.
 
 O código do app não distribui essas cifras. As páginas e os serviços externos podem mudar ou ficar indisponíveis. Não é utilizada autenticação da conta do usuário nesses sites e não se acessam páginas que dependam de login ou assinatura.
+
+
+
+## Leitor Songsterr (versão 15)
+
+Consulta pública individual não oficial, com metadados via Jina Reader e leitura das notas na fonte. Disponibilidade, afinação, revisões e condições dependem da fonte; não é uma API contratada. Tablaturas e letras de músicas não são incluídas neste repositório, persistidas ou exportadas pelo leitor Songsterr. O modo integrado usa a letra/LRC já carregada pelo aplicativo principal, incluindo arquivos do usuário; não envia credenciais do Spotify às fontes. O laboratório independente continua com sua consulta individual LRCLIB.

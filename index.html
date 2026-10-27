@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://r.jina.ai; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://r.jina.ai; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'self'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0e0d0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="14">
-<link rel="stylesheet" href="styles.css?v=14">
+<meta name="app-version" content="15">
+<link rel="stylesheet" href="styles.css?v=15">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -34,7 +34,7 @@
   <div id="banner" hidden></div>
 
   <section id="study-bar" aria-label="Área de estudo">
-    <div class="study-tabs"><button data-study-mode="together" aria-pressed="true">Juntos</button><button data-study-mode="sheet" aria-pressed="false">Cifra</button><button data-study-mode="tabs" aria-pressed="false">Tablatura</button><button data-study-mode="lyrics" aria-pressed="false">Letra</button><button data-study-mode="chords" aria-pressed="false">Acordes</button></div>
+    <div class="study-tabs"><button data-study-mode="together" aria-pressed="true">Juntos</button><button data-study-mode="sheet" aria-pressed="false">Cifras</button><button data-study-mode="tabs" aria-pressed="false">Tablaturas</button></div>
     <label class="instrument-picker" for="study-instrument">Instrumento <select id="study-instrument"><option value="guitarra">Guitarra · 6 cordas</option><option value="violao">Violão · 6 cordas</option><option value="cavaquinho">Cavaquinho · 4 cordas</option></select></label>
     <div id="lyric-strip" hidden><strong id="lyric-current"></strong><span id="lyric-next"></span></div>
   </section>
@@ -45,7 +45,7 @@
       <section id="lyrics-view" hidden></section>
       <section id="chords-view" hidden></section>
       <section id="together-view"></section>
-      <section id="tabs-view" hidden></section>
+      <section id="tabs-view" hidden><div class="tab-source-picker" aria-label="Fonte da tablatura"><button class="pill" data-tab-source="songsterr" aria-pressed="true">Songsterr</button><button class="pill" data-tab-source="local" aria-pressed="false">Meus arquivos / exercícios</button></div><div id="songsterr-host"><p id="songsterr-fallback" class="sub" hidden>O leitor não respondeu. Use Meus arquivos ou <a href="lab/songsterr/" target="_blank" rel="noopener noreferrer">abra o teste separado</a>.</p></div><section id="tabs-local-view" hidden></section></section>
       <div id="empty" hidden></div>
     </main>
     <button id="resume" class="float" hidden>↧ Voltar a acompanhar</button>
@@ -143,6 +143,7 @@
     <div id="chart-status" role="status" hidden></div>
     </details>
 
+    <h4>Leituras de estudo</h4><div class="group"><button class="item" data-study-mode="lyrics"><span>Letra da música</span></button><button class="item" data-study-mode="chords"><span>Diagramas de acordes</span></button></div>
     <h4>Estudo e letras</h4>
     <div class="group"><label class="item"><span>Buscar cifra com letra automaticamente<br><span class="sub">Cifra Club via Jina Reader · consulta por faixa</span></span><input type="checkbox" id="m-auto-charts" checked></label></div>
     <div class="group">
@@ -272,17 +273,19 @@
 <input type="file" id="import-songs" accept=".tab,.txt,.cho,.chopro,.chordpro,.crd,.pro,.json,.jsonl,.gz,.zip,.lrc,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=14"></script>
-<script src="study-core.js?v=14"></script>
-<script src="playalong-core.js?v=14"></script>
-<script src="tabs-core.js?v=14"></script>
-<script src="storage.js?v=14"></script>
-<script src="catalog.js?v=14"></script>
-<script src="chart-source.js?v=14"></script>
-<script src="together.js?v=14"></script>
+<script src="core.js?v=15"></script>
+<script src="study-core.js?v=15"></script>
+<script src="playalong-core.js?v=15"></script>
+<script src="tabs-core.js?v=15"></script>
+<script src="storage.js?v=15"></script>
+<script src="catalog.js?v=15"></script>
+<script src="chart-source.js?v=15"></script>
+<script src="together.js?v=15"></script>
 <script src="vendor/fflate.min.js"></script>
-<script src="tabs.js?v=14"></script>
-<script src="study.js?v=14"></script>
-<script src="app.js?v=14"></script>
+<script src="tabs.js?v=15"></script>
+<script src="songsterr.js?v=15"></script>
+<script src="study.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
+
