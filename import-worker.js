@@ -1,5 +1,5 @@
 /* Leitura incremental em worker: JSONL/gzip e ZIP não bloqueiam a tela. */
-importScripts('core.js?v=14', 'playalong-core.js?v=14', 'tabs-core.js?v=14', 'storage.js?v=14', 'vendor/fflate.min.js');
+importScripts('core.js?v=15', 'playalong-core.js?v=15', 'tabs-core.js?v=15', 'storage.js?v=15', 'vendor/fflate.min.js');
 const C = self.CifraCore, DB = self.CifraDB;
 let importInstrument='guitarra';
 let batch = [], received = 0, written = 0, total = 0, ignored = 0;
@@ -118,3 +118,4 @@ self.onmessage = async ({ data }) => {
     postMessage({ type: 'error', message: error.message || 'Falha na importação.', received, written });
   }
 };
+

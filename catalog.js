@@ -11,7 +11,7 @@
     if (importBusy) return Promise.reject(new Error('Aguarde a importação atual terminar.'));
     importBusy = true;
     return new Promise((yes, no) => {
-      const worker = new Worker('import-worker.js?v=14');
+      const worker = new Worker('import-worker.js?v=15');
       let settled = false;
       const finish = (error, value) => { if (settled) return; settled = true; worker.terminate(); importBusy = false; if (error) no(error); else yes(value); };
       const cancel = () => finish(new Error('Importação interrompida. Os lotes já salvos foram mantidos.'));
@@ -50,3 +50,4 @@
   async function remove(onProgress){if(importBusy)throw new Error('Aguarde a importação atual terminar.');importBusy=true;try{return await DB.removeCatalog(onProgress);}finally{importBusy=false;}}
   window.CifraCatalog = { manifest, seed, ensure, importFiles, remove, busy: () => importBusy };
 })();
+

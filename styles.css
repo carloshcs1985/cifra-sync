@@ -359,3 +359,18 @@ body.recording .together-line{cursor:crosshair;outline:1px dashed var(--accent);
 .catalog-remove .sub{color:var(--muted);font-weight:400;}
 .catalog-remove:disabled{opacity:.55;cursor:wait;}
 #catalog-removal-status{overflow-wrap:anywhere;}
+
+
+/* Estudo 15: três abas e leitor Songsterr separado da biblioteca local. */
+.study-tabs{grid-template-columns:repeat(3,minmax(0,1fr));}
+#tabs-view{padding:0;max-width:none;margin:0;}
+#tabs-local-view{padding:16px 16px 65vh;max-width:960px;margin:auto;}
+.tab-source-picker{display:flex;gap:8px;padding:8px 12px;background:var(--bg);font-size:12px;}
+.tab-source-picker button[aria-pressed="true"]{color:var(--on-accent);background:var(--accent);}
+body[data-study=tabs][data-tab-source=songsterr] #scroller{overflow:hidden;}
+body[data-study=tabs][data-tab-source=songsterr] #tabs-view{height:100%;display:flex;flex-direction:column;}
+#songsterr-host{min-height:0;flex:1;position:relative;}
+#songsterr-reader{width:100%;height:100%;border:0;display:block;background:var(--bg);}
+#songsterr-fallback{position:absolute;inset:0 0 auto;padding:12px;z-index:2;background:var(--surface);}
+body[data-study=tabs][data-tab-source=songsterr] .instrument-picker{display:none;}
+body[data-study=tabs] .tools .seg[title="Transpor tom"]{display:none;}

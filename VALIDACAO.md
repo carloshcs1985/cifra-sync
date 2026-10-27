@@ -1,3 +1,20 @@
+# Validação da versão 15
+
+- 23 testes Node do aplicativo principal e 15 testes Node do laboratório aprovados.
+- Integração em navegador com conteúdo original de teste: três abas principais; leitores Juntos e Cifras, diagramas, menu de Letra/Acordes, biblioteca local e instrumentos preservados.
+- Songsterr compartilha somente faixa/relógio/letra, sem outro OAuth ou polling Spotify e sem envio de credenciais às fontes. Mensagens de outra janela são rejeitadas. Não duplica a consulta LRCLIB da aplicação principal.
+- Reprodução/pausa, troca automática de faixa, limpeza de marcações entre gravações, letra abaixo dos compassos após marcar, escala de fonte e temas verificados em tela móvel e desktop.
+- Dados pessoais de cifra, marcações, transposição, tablatura importada e seus tempos, fila e token comparados antes/depois no navegador de teste.
+- Falha HTTP da fonte confinada ao leitor, mantendo arquivos locais e as outras abas disponíveis. Atividade em segundo plano interrompida ao mudar de aba.
+- Atualização preserva esquema/chaves do IndexedDB e credenciais existentes. A versão da interface e do service worker passa para 15; apenas cache de arquivos estáticos é renovado. A biblioteca pessoal não é removida.
+- Tempos por compasso continuam estimados. Não valida sincronismo exato por nota, todos os arranjos do catálogo ou disponibilidade futura dos serviços. Marcações do leitor Songsterr ficam somente na sessão.
+
+## Executar
+
+`node --test tests/*.test.cjs` e `node --test lab/songsterr/tests/*.test.cjs`. Para o teste integrado: `node tests/songsterr-browser.cjs` com Playwright e Chromium instalados (ou `LAB_CHROMIUM_EXECUTABLE`). O teste usa conta e dados simulados, sem sessão pessoal. Para regressão independente, `node lab/songsterr/tests/browser.cjs`.
+
+---
+
 # Validação da versão 11
 
 - 22 testes Node aprovados. A nova correspondência de cifra geral permite Sujeito - Ao Vivo → Sujeito, mantendo rejeição de remix/acústico/outro título e a validação estrita de letra cronometrada.
@@ -105,3 +122,4 @@ O teste de volume validou o importador, os índices, a continuidade da interface
 ## Versão 14 — remoção do catálogo
 
 23 testes Node aprovados. Teste em Chromium com tela de 390 × 844: cancelamento não alterou a contagem; remoção de 5.000 registros de teste e da seleção inicial preservou cifras pessoais, marcações, transposição, letras e tablaturas. Registros legados de catálogo com marcações/transposição passaram a pessoais. Recarga não reinstalou a seleção inicial; reimportação explícita continuou possível. Nenhum erro JavaScript. O teste não mediu recuperação de 500 MB físicos: o espaço recuperado depende do navegador.
+

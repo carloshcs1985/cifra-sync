@@ -102,7 +102,7 @@
     $('#lyrics-view').hidden = mode !== 'lyrics'; $('#chords-view').hidden = mode !== 'chords';
     $('#together-view').hidden = mode !== 'together';
     $('#tabs-view').hidden = mode !== 'tabs';
-    if(mode==='tabs')window.CifraTabs.refresh();
+    window.CifraSongsterr?.activate(mode==='tabs');if(mode==='tabs')window.CifraTabs.refresh();
     $('#scroller').scrollTop = 0; ctx.resetScroll();
     if (mode === 'chords') diagrams();
     if (mode === 'lyrics') renderLyrics();
@@ -188,7 +188,7 @@
     const state=window.CifraTogether.playback(ms);
     if(['sheet','together'].includes(mode))focusChords(state);
     if (mode === 'together') return window.CifraTogether.frame(ms,holding,state);
-    if (mode === 'tabs') return window.CifraTabs.frame(ms,holding);
+    if (mode === 'tabs') return window.CifraSongsterr?.source()==='songsterr'?window.CifraSongsterr.frame(ms,holding):window.CifraTabs.frame(ms,holding);
     if (mode !== 'lyrics') return false;
     if (!lyrics || !lyricEls.length) return true;
     const timed = !!lyrics.lines.length;
@@ -216,9 +216,10 @@
   }
   function init(context) {
     ctx=context;
-    window.CifraTabs.init({...ctx,mode:()=>mode,instrumentChanged:()=>{renderChordbar();if(mode==='chords')diagrams();if(!$('#chord-modal').hidden){selectedPosition=0;drawChord();}window.CifraTogether.render(lyrics,status);}});
+    window.CifraSongsterr?.init({...ctx,lyricInfo:()=>({lyrics,status,id:currentId})});
+    window.CifraTabs.init({...ctx,mode:()=>mode==='tabs'&&window.CifraSongsterr?.source()==='songsterr'?'songsterr':mode,instrumentChanged:()=>{window.CifraSongsterr?.refresh();renderChordbar();if(mode==='chords')diagrams();if(!$('#chord-modal').hidden){selectedPosition=0;drawChord();}window.CifraTogether.render(lyrics,status);}});
     window.CifraTogether.init({...ctx,shapes:shapeData,svg:shapeSvg,openChord});
-    document.querySelectorAll('[data-study-mode]').forEach(b => b.onclick=()=>setMode(b.dataset.studyMode));
+    document.querySelectorAll('[data-study-mode]').forEach(b => b.onclick=()=>{setMode(b.dataset.studyMode);$('#ov-menu').hidden=true;});
     $('#chords-view').onclick=e=>{const b=e.target.closest('[data-chord]');if(b)openChord(b.dataset.chord);};
     $('#chordbar').onclick=e=>{const b=e.target.closest('[data-chord]');if(b)openChord(b.dataset.chord);};
     $('#m-diagrams').checked=ctx.settings().diagrams!==false;
@@ -234,7 +235,8 @@
     $('#lyrics-view').onclick=e=>{const ln=e.target.closest('[data-lyric-index]');if(ln&&lyrics?.lines.length)ctx.seek(lyrics.lines[+ln.dataset.lyricIndex].t);};
     setMode('together');
   }
-  function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();window.CifraTabs.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
-  function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);window.CifraTabs.refresh();renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
+  function clear() { window.CifraSongsterr?.clear();++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();window.CifraTabs.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
+  function refresh() { if(!ctx)return;window.CifraSongsterr?.refresh();document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);window.CifraTabs.refresh();renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
   window.CifraStudy={init,frame,refresh,clear,loadLyrics,importLrc,focusChords,mode:()=>mode,setMode,playback:ms=>window.CifraTogether.playback(ms)};
 })();
+

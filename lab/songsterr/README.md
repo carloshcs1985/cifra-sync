@@ -1,6 +1,6 @@
 # Laboratório Songsterr — experimental
 
-Página independente para validar busca de músicas, seleção de pistas e acompanhamento estimado por compasso. Nenhum arquivo da aplicação principal é substituído. Não importa módulos do Cifra Sync, não registra service worker, não usa IndexedDB/localStorage e não modifica a biblioteca pessoal. O service worker já instalado no site pode intermediar arquivos estáticos deste caminho; ele não é alterado pelo laboratório.
+Página independente para validar busca de músicas, seleção de pistas e acompanhamento estimado por compasso. No endereço de teste, nenhum arquivo da aplicação principal é substituído. A partir da versão 15, o mesmo leitor também é oferecido dentro da aba Tablaturas, por um adaptador separado. Não importa módulos do Cifra Sync, não registra service worker, não usa IndexedDB/localStorage e não modifica a biblioteca pessoal. O service worker já instalado no site pode intermediar arquivos estáticos deste caminho; ele não é alterado pelo laboratório.
 
 ## Testar
 
@@ -51,3 +51,7 @@ Somente letras com título de versão compatível e duração até dois segundos
 Uma consulta por gravação durante a sessão, cache em memória limitado a 20 resultados por 10 minutos, requisições sequenciais, identificação do cliente, pausa entre busca exata e alternativa, timeout e respeito a HTTP 429/Retry-After. Não envia token/cookies Spotify ao LRCLIB. Respostas de gravações anteriores são canceladas e descartadas; desconectar remove a letra da tela. Nenhuma letra é incluída no repositório ou persistida no armazenamento do aplicativo.
 
 Testes: LRC com vários timestamps, lacunas instrumentais e offset; distribuição após uma/duas marcas; rejeição de artista incorreto e de tempos de outra versão/duração; cache, cancelamento e limite da fonte. Navegador: frase atual/próxima, pausa, letra abaixo dos compassos após marcar, remoção das posições ao trocar pista e isolamento de credenciais. O modo de fonte real também verifica acesso direto ao LRCLIB com CORS no navegador para Wake Me Up When September Ends, sem salvar sua letra no repositório.
+
+## Integração na versão 15
+
+No modo incorporado (`?embedded=1` em um frame do próprio Cifra Sync), o leitor recebe faixa, relógio, tema, escala e letra/LRC da aplicação principal. Não inicializa OAuth, polling Spotify nem consulta própria de letra. Mensagens são aceitas somente do pai e da mesma origem, com validação dos campos e limites; a ponte não aceita tokens ou comandos de reprodução. Os controles do Cifra Sync permanecem na aplicação principal. Consultas são canceladas quando o leitor fica inativo; respostas antigas e marcações de outra gravação não são reutilizadas. O modo independente mantém seu fluxo anterior de teste e sua autorização opcional própria.

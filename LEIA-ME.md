@@ -1,4 +1,7 @@
-# Cifra Sync · Estudo 11
+# Cifra Sync · Estudo 15
+
+Atualização 15: use **Juntos / Cifras / Tablaturas**. Em Tablaturas, Songsterr usa a conexão Spotify existente; não cadastre outro Redirect URI e não remova o principal. **Este compasso começa agora** inicia o acompanhamento estimado; uma segunda marcação ajusta a velocidade. A letra com tempos disponível no app aparece junto do leitor. **Meus arquivos / exercícios** mantém suas tablaturas anteriores. Letra e Acordes estão em **Menu → Leituras de estudo**. Consulte o README para detalhes e limitações. Não apague os dados do site para atualizar.
+
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
 
@@ -128,3 +131,4 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
 Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `chart-source.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
+
