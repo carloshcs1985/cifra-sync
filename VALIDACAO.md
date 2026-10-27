@@ -1,3 +1,12 @@
+# Validação da versão 11
+
+- 22 testes Node aprovados. A nova correspondência de cifra geral permite Sujeito - Ao Vivo → Sujeito, mantendo rejeição de remix/acústico/outro título e a validação estrita de letra cronometrada.
+- HTML real de Sujeito obtido por consulta individual ao Cifra Club via Jina Reader; testes de navegador usam reprodução Spotify simulada. Importação, leitura interna em Cifras/Juntos e blocos em Tablatura conferidos, com aviso persistente de cifra geral.
+- Domínios oficiais .com/.com.br normalizados; artista e título errados, remix, acústico, HTTP e URLs externas rejeitados. Reabertura utiliza a cifra salva sem nova consulta e não envia credenciais Spotify à fonte.
+- A conta Spotify do usuário e o celular da esposa não foram operados. Privacidade do repositório e lista de usuários autorizados Spotify não foram alteradas.
+
+## Histórico
+
 # Validação da versão 10
 
 - 21 testes Node aprovados: `node --test tests/*.test.cjs`. Incluem leitura de tablaturas de seis/quatro cordas, técnicas, rejeição de sete cordas e instrumentos incompatíveis, marcações por gravação, nove exercícios originais e notas dos diagramas de cavaquinho.

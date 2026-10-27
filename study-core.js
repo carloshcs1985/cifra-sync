@@ -30,6 +30,14 @@
   const lyricTitle = s => String(s || '').replace(/\s*\((?:\d{4}\s+)?remaster(?:ed)?(?:\s+\d{4})?\)/gi,'').replace(/\s*[-–]\s*(?:\d{4}\s+)?remaster(?:ed)?(?:\s+\d{4})?/gi,'').trim();
   const identity = s => fold(lyricTitle(s)).replace(/[^a-z0-9]+/g, ' ').trim();
   function variant(s) { return ['live', 'ao vivo', 'acoustic', 'acustic', 'remix', 'instrumental'].filter(w => fold(s).includes(w)).join('|'); }
+  // A generic chord chart may help with a live recording, but is not a timed
+  // transcription of that recording. Keep lyric/timing identity checks strict.
+  function chartMatch(trackTitle,pageTitle) {
+    if(identity(trackTitle)===identity(pageTitle)&&variant(trackTitle)===variant(pageTitle))return 'exact';
+    if(variant(pageTitle)||!['ao vivo','live'].includes(variant(trackTitle)))return null;
+    const base=lyricTitle(trackTitle).replace(/\s*(?:[-–]\s*|\()\s*(?:ao vivo|live)(?:\s+(?:at|in|from|em)\s+[^)]*)?\)?\s*$/i,'').trim();
+    return base!==lyricTitle(trackTitle)&&identity(base)===identity(pageTitle)?'general':null;
+  }
   function matchLyrics(track, result) {
     if (!result || identity(result.artistName) !== identity(String(track.artist || '').split(',')[0])) return false;
     if (identity(result.trackName) !== identity(track.title) || variant(result.trackName) !== variant(track.title)) return false;
@@ -50,5 +58,5 @@
     }
     return null;
   }
-  return { parseLrc, lyricIndex, lyricTitle, identity, variant, matchLyrics, chordLookup };
+  return { parseLrc, lyricIndex, lyricTitle, identity, variant, chartMatch, matchLyrics, chordLookup };
 });
