@@ -13,8 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<meta name="app-version" content="11">
-<link rel="stylesheet" href="styles.css?v=11">
+<meta name="app-version" content="12">
+<link rel="stylesheet" href="styles.css?v=12">
 <title>Cifra Sync</title>
 </head>
 <body>
@@ -36,9 +36,6 @@
   <section id="study-bar" aria-label="Área de estudo">
     <div class="study-tabs"><button data-study-mode="together" aria-pressed="true">Juntos</button><button data-study-mode="sheet" aria-pressed="false">Cifra</button><button data-study-mode="tabs" aria-pressed="false">Tablatura</button><button data-study-mode="lyrics" aria-pressed="false">Letra</button><button data-study-mode="chords" aria-pressed="false">Acordes</button></div>
     <label class="instrument-picker" for="study-instrument">Instrumento <select id="study-instrument"><option value="guitarra">Guitarra · 6 cordas</option><option value="violao">Violão · 6 cordas</option><option value="cavaquinho">Cavaquinho · 4 cordas</option></select></label>
-    <div id="study-status" role="status">Biblioteca de estudo</div>
-    <div id="chart-version-note" role="status" hidden></div>
-    <div id="chart-status" role="status" hidden></div>
     <div id="lyric-strip" hidden><strong id="lyric-current"></strong><span id="lyric-next"></span></div>
   </section>
   <div id="chordbar" hidden aria-label="Diagramas dos acordes do trecho"></div>
@@ -138,6 +135,13 @@
       </div>
       <button class="item" id="m-connect"><span id="m-connect-label">Conectar ao Spotify</span></button>
     </div>
+
+    <details id="music-info" class="music-info">
+      <summary>Informações da música</summary>
+    <div id="study-status" role="status">Biblioteca de estudo</div>
+    <div id="chart-version-note" role="status" hidden></div>
+    <div id="chart-status" role="status" hidden></div>
+    </details>
 
     <h4>Estudo e letras</h4>
     <div class="group"><label class="item"><span>Buscar cifra com letra automaticamente<br><span class="sub">Cifra Club via Jina Reader · consulta por faixa</span></span><input type="checkbox" id="m-auto-charts" checked></label></div>
@@ -264,17 +268,17 @@
 <input type="file" id="import-songs" accept=".tab,.txt,.cho,.chopro,.chordpro,.crd,.pro,.json,.jsonl,.gz,.zip,.lrc,text/plain" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="core.js?v=11"></script>
-<script src="study-core.js?v=11"></script>
-<script src="playalong-core.js?v=11"></script>
-<script src="tabs-core.js?v=11"></script>
-<script src="storage.js?v=11"></script>
-<script src="catalog.js?v=11"></script>
-<script src="chart-source.js?v=11"></script>
-<script src="together.js?v=11"></script>
+<script src="core.js?v=12"></script>
+<script src="study-core.js?v=12"></script>
+<script src="playalong-core.js?v=12"></script>
+<script src="tabs-core.js?v=12"></script>
+<script src="storage.js?v=12"></script>
+<script src="catalog.js?v=12"></script>
+<script src="chart-source.js?v=12"></script>
+<script src="together.js?v=12"></script>
 <script src="vendor/fflate.min.js"></script>
-<script src="tabs.js?v=11"></script>
-<script src="study.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="tabs.js?v=12"></script>
+<script src="study.js?v=12"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
