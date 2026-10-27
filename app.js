@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '13';
+  const APP_VERSION = '14';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -83,13 +83,14 @@
     { clientId: '', fontScale: 1, fit: true, theme: 'dark', scrollMode: 'spotify', speed: 30, demo: false },
     store.settings || {}
   );
+  let catalogRemoving=false;
   let persistQueue = Promise.resolve(true);
   const save = () => {
     const ok = writeJSON(STORE_KEY, { settings: store.settings, queue: store.queue, storage: 'indexeddb' });
     if (!ok) toast('Não consegui salvar as configurações.');
     const active = S.viewingId ? store.songs[S.viewingId] : S.trackSong;
     if (active) store.songs[active.id] = active;
-    const rows = Object.values(store.songs).map(s => ({ ...s, anchors:[...(s.anchors||[])], trackIds:[...(s.trackIds||[])] }));
+    const rows = Object.values(store.songs).filter(s=>!catalogRemoving||s.kind!=='catalog').map(s => ({ ...s, anchors:[...(s.anchors||[])], trackIds:[...(s.trackIds||[])] }));
     persistQueue = persistQueue.then(() => DB.bulkPut(rows)).then(() => true).catch(() => { toast('Não consegui salvar as cifras. Confira o espaço disponível.', 6000); return false; });
     return persistQueue;
   };
@@ -1021,6 +1022,26 @@
     render();
     if(!$('#ov-lib').hidden)await renderLib();
   }
+  async function removeCatalog() {
+    if(catalogRemoving)return;
+    if(Catalog.busy()){toast('Aguarde a importação atual terminar.');return;}
+    if(!confirm('Remover o catálogo importado deste aparelho? Suas cifras pessoais, letras, tablaturas e marcações serão preservadas. A busca online continua disponível; o catálogo pode ser importado novamente.'))return;
+    catalogRemoving=true;
+    const button=$('#m-remove-catalog'),status=$('#catalog-removal-status');
+    button.disabled=true;$('#m-download-catalog').disabled=true;status.hidden=false;status.textContent='Removendo catálogo… mantenha o aplicativo aberto.';
+    try{
+      await persistQueue;
+      const result=await Catalog.remove(({removed})=>{status.textContent=removed.toLocaleString('pt-BR')+' registros removidos…';});
+      for(const [id,song] of Object.entries(store.songs))if(song.kind==='catalog'){const kept=await DB.get(id);if(kept)store.songs[id]=kept;else delete store.songs[id];}
+      if(S.trackSong?.kind==='catalog')S.trackSong=await DB.get(S.trackSong.id)||null;
+      if(S.viewingId&&!await DB.get(S.viewingId))S.viewingId=null;
+      await resolveTrackSong();render();syncMenu();
+      if(!$('#ov-lib').hidden)await renderLib();
+      status.textContent=result.removed.toLocaleString('pt-BR')+' registros removidos. Suas cifras e marcações foram preservadas. O espaço liberado depende do navegador.';
+      toast('Catálogo removido deste aparelho.');
+    }catch(e){status.textContent=e.message||'Não consegui remover o catálogo. Tente novamente.';}
+    finally{catalogRemoving=false;button.disabled=false;$('#m-download-catalog').disabled=false;}
+  }
   function downloadCatalog() {
     hide('#ov-menu');
     toast('Selecione o arquivo Cifra_Sync_Biblioteca_430mil.jsonl.gz. Não precisa extrair.',6000);
@@ -1380,6 +1401,7 @@
     });
     $('#m-export').addEventListener('click', () => exportBackup().catch(()=>toast('Não consegui exportar as cifras pessoais.')));
     $('#m-download-catalog').addEventListener('click', downloadCatalog);
+    $('#m-remove-catalog').addEventListener('click', removeCatalog);
     window.addEventListener('cifra-import-queue',e=>{const have=new Set(store.queue.map(q=>q.trackId));for(const q of e.detail){if(q&&typeof q.trackId==='string'&&!have.has(q.trackId)){store.queue.push({...q,key:C.normKey(q.artist,q.title)});have.add(q.trackId);}}save();});
     $('#m-import').addEventListener('click', () => $('#import-file').click());
     $('#import-file').addEventListener('change', (e) => {

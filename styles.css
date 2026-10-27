@@ -354,3 +354,8 @@ textarea#ed-text { flex: 1; font-family: var(--mono); white-space: pre; overflow
 @media(max-height:500px){#music-info #study-status{display:block;}}
 
 body.recording .together-line{cursor:crosshair;outline:1px dashed var(--accent);outline-offset:2px;}
+
+.catalog-remove{color:var(--danger);gap:12px;}
+.catalog-remove .sub{color:var(--muted);font-weight:400;}
+.catalog-remove:disabled{opacity:.55;cursor:wait;}
+#catalog-removal-status{overflow-wrap:anywhere;}

@@ -61,6 +61,20 @@
   }
   async function get(id) { const db = await open(); return request(db.transaction('songs').objectStore('songs').get(id)); }
   async function remove(id) { const db = await open(), tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').delete(id); await done(tx); }
+  // Delete only untouched catalogue rows; never clear the database or personal stores.
+  async function removeCatalog(onProgress) {
+    const db=await open(),tx=db.transaction(['songs','meta'],'readwrite'),finished=done(tx),os=tx.objectStore('songs');
+    let removed=0,preserved=0;
+    tx.objectStore('meta').put(true,'catalog:removed');
+    const r=os.index('kind').openCursor(IDBKeyRange.only('catalog'));
+    r.onsuccess=()=>{const c=r.result;if(!c)return;const s=c.value;
+      const protectedRow=s.anchors?.length || s.transpose || s.chordTiming?.cues?.length || s.chordTimingHistory?.some(t=>t.cues?.length) || s.hasLyrics;
+      if(protectedRow){c.update({...s,kind:'personal'});preserved++;}else{c.delete();removed++;}
+      if((removed+preserved)%1000===0)onProgress?.({removed,preserved});
+      c.continue();
+    };
+    await finished;return {removed,preserved};
+  }
   async function count() { const db = await open(); return request(db.transaction('songs').objectStore('songs').count()); }
   async function find(trackId, key) {
     const db = await open(), os = db.transaction('songs').objectStore('songs');
@@ -123,5 +137,5 @@
   }
   async function tabsList(instrument) {const db=await open(),os=db.transaction('tabs').objectStore('tabs');return request(instrument?os.index('instrument').getAll(instrument):os.getAll());}
   async function tabsRemove(id) {const db=await open(),tx=db.transaction('tabs','readwrite');tx.objectStore('tabs').delete(id);await done(tx);}
-  root.CifraDB = { tabsPut,tabsList,tabsRemove,tabsCapture, open, normalize, bulkPut, get, remove, count, find, hasMany, search, personal, meta, lyrics };
+  root.CifraDB = { tabsPut,tabsList,tabsRemove,tabsCapture, open, normalize, bulkPut, get, remove, removeCatalog, count, find, hasMany, search, personal, meta, lyrics };
 })(typeof self !== 'undefined' ? self : globalThis);

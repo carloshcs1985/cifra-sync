@@ -1,5 +1,5 @@
 /* Cifra Sync — funciona offline (a interface; o Spotify precisa de internet). */
-const VERSION = '13';
+const VERSION = '14';
 const CACHE = 'cifrasync-v' + VERSION;
 const ASSETS = ['./', './index.html', './styles.css?v=' + VERSION, './core.js?v=' + VERSION, './app.js?v=' + VERSION,
   './storage.js?v=' + VERSION, './study-core.js?v=' + VERSION, './playalong-core.js?v=' + VERSION, './together.js?v=' + VERSION, './study.js?v=' + VERSION,
