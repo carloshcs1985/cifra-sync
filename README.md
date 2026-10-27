@@ -1,6 +1,13 @@
-# Cifra Sync · Estudo 11
+# Cifra Sync · Estudo 13
 
 Ambiente pessoal de estudo de guitarra/violão que identifica a faixa em reprodução no Spotify, abre os acordes da biblioteca local e acompanha o tempo da música.
+
+## Ajuste de rolagem na versão 13
+Nas abas Cifra e Juntos, toque em **Ajustar rolagem** e depois na frase que está ouvindo. A reprodução continua, a posição é salva na cifra deste aparelho e o acompanhamento segue dali. Se precisar, repita em outro trecho. Os pontos substituem a estimativa por letra; o intervalo entre eles continua estimado. Use Desfazer ou apague as marcações pelo menu.
+
+## Mais espaço na leitura na versão 12
+
+As informações de origem, versão e busca ficam recolhidas em **Menu → Informações da música**. A barra de diagramas passou de 96 para 108 px nas telas comuns, com posições um pouco maiores e mais espaço restante para a cifra. Em paisagem baixa, a barra continua compacta.
 
 ## Correção de cifras ao vivo na versão 11
 
@@ -77,7 +84,7 @@ Mantenha o mesmo endereço, Client ID e Redirect URI já configurados. Atualize 
 
 Não apague os dados do site no iPhone: a atualização migra as cifras existentes. O login do Spotify continua apenas no aparelho; não há token nem segredo no repositório.
 
-Abra a versão atualizada e confira **Menu → Cifra Sync · versão 11**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
+Abra a versão atualizada e confira **Menu → Cifra Sync · versão 13**. Se ainda aparecer a versão anterior, feche as abas e o app instalado e abra novamente. As versões dos arquivos e do service worker foram atualizadas.
 
 ## Preparar o estudo
 
@@ -94,7 +101,7 @@ O catálogo distribuído contém **acordes e divisões de estrutura**, sem letra
 
 A consulta envia título, artista, álbum e duração ao LRCLIB; nunca envia o token do Spotify. Pode ser desativada no menu. O serviço é externo e a cobertura varia. Uma resposta que não corresponde a título, artista, tipo de versão e duração é descartada. Falha de rede ou falta de letra não impede a leitura dos acordes.
 
-Arquivos TXT/ChordPro **com letra e acordes já alinhados** mantêm esse alinhamento na aba Cifra. Uma letra obtida separadamente não informa onde cada acorde deve cair sobre as palavras: o aplicativo mostra as duas informações sem inventar esse alinhamento. A aba Letra e o trecho sobre a cifra podem usar os tempos do LRC; a rolagem dos acordes sem marcações continua aproximada. Para os acordes acompanharem um arranjo exatamente, use **Marcar** e salve as entradas de cada trecho.
+Arquivos TXT/ChordPro **com letra e acordes já alinhados** mantêm esse alinhamento na aba Cifra. Uma letra obtida separadamente não informa onde cada acorde deve cair sobre as palavras: o aplicativo mostra as duas informações sem inventar esse alinhamento. A aba Letra e o trecho sobre a cifra podem usar os tempos do LRC; a rolagem dos acordes sem marcações continua aproximada. Para os acordes acompanharem um arranjo exatamente, use **Ajustar rolagem** e salve as entradas de cada trecho.
 
 ## Importar seus arquivos
 
@@ -128,6 +135,3 @@ A interface, os diagramas e as cifras importadas funcionam offline após a insta
 Sem etapa de compilação. Sirva a pasta por HTTPS ou, para testar, `python -m http.server 8000 --bind 127.0.0.1`. Cadastre o Redirect URI local no Spotify se precisar testar autenticação. Não coloque um client secret neste app público.
 
 Arquivos novos: `storage.js`, `study-core.js`, `playalong-core.js`, `chart-source.js`, `together.js`, `study.js`, `catalog.js`, `import-worker.js`, `assets/`, `catalog/` e `vendor/`. Veja `THIRD_PARTY_NOTICES.md` para as fontes e licenças e `VALIDACAO.md` para o escopo dos testes.
-
-### Ajustar a rolagem durante a música
-Nas abas Cifra e Juntos, toque em **Ajustar rolagem** e depois na frase que está ouvindo. A reprodução continua, a posição é salva na cifra deste aparelho e o acompanhamento segue dali. Se precisar, repita em outro trecho. Os pontos substituem a estimativa por letra; o intervalo entre eles continua estimado. Use Desfazer ou apague as marcações pelo menu.
