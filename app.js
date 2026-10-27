@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '15';
+  const APP_VERSION = '16';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -746,7 +746,7 @@
     el.btnRec.hidden = mode !== 'spotify';
     el.btnRec.disabled = !syncing() || !['sheet','together'].includes(Study.mode());
     el.btnRec.classList.toggle('on', S.recording);
-    el.btnRec.textContent = Study.mode()==='tabs'&&window.CifraSongsterr?.source()==='songsterr'?'Marque no compasso':S.recording ? 'Toque no trecho' : 'Ajustar rolagem';
+    el.btnRec.textContent = Study.mode()==='tabs'&&window.CifraSongsterr?.source()==='songsterr'?'Rolagem automática':S.recording ? 'Toque no trecho' : 'Ajustar rolagem';
     el.recBar.hidden = !S.recording;
     document.body.classList.toggle('recording', S.recording);
 
