@@ -37,3 +37,32 @@ test('LRC can join or split source phrases without inventing per-word or per-cho
  const links=P.matchChartLyrics(blocks,lyrics,C);assert.deepEqual(links,[{start:0,end:0},{start:0,end:0},{start:1,end:2},{start:3,end:3},null]);
  const numeric=P.matchChartLyrics([{text:'An original phrase at twenty-three'}],[{text:'An original phrase at 23'}],C);assert.deepEqual(numeric,[{start:0,end:0}]);
 });
+test('shared guide follows LRC phrases and explicitly labels inferred chord changes',()=>{
+ const source={sheet:'[Intro]\nE\n\nC       G\nFrase original para estudo\nAm     F\nOutra frase original',kind:'personal'};
+ const lyrics={lines:[{t:10000,text:'Frase original para estudo'},{t:20000,text:'Outra frase original'}]};
+ const plan=P.playbackPlan(source,{id:'one',duration:30000},lyrics,C);
+ assert.deepEqual(plan.events.map(e=>e.source),['structure','phrase','phrase','phrase','phrase']);
+ assert(plan.events.every(e=>e.estimated));assert.equal(plan.events[1].t,10000);assert.equal(plan.events[3].t,20000);
+ assert.equal(P.playbackAt(plan,10000,C).current.chord,'C');assert.deepEqual(P.playbackAt(plan,21000,C).rows,[1]);
+ assert.deepEqual(P.playbackAt(plan,11000,C).rows,[0]);
+ assert.equal(C.timeAt(plan.units.cum[3],plan.reading),10000);
+ const transposed=P.playbackPlan({...source,transpose:2},{id:'one',duration:30000},lyrics,C);
+ assert.deepEqual(transposed.events.map(e=>e.t),plan.events.map(e=>e.t));assert.equal(transposed.events[1].chord,'D');
+});
+test('saved occurrences override estimates without freezing all remaining unmarked chords',()=>{
+ const source=song(),track={id:'recording1',duration:20000};
+ const plan=P.playbackPlan(source,track,null,C);
+ assert.deepEqual(plan.events.slice(0,4).map(e=>[e.t,e.estimated]),[[1000,false],[4200,false],[6000,false],[10000,false]]);
+ assert.equal(plan.events[4].estimated,true);assert(plan.events[4].t>10000);assert(plan.events[4].t<20000);
+ assert.equal(P.playbackAt(plan,999,C).current,null);assert.equal(P.playbackAt(plan,4200,C).current.chord,'G');assert.equal(P.playbackAt(plan,2000,C).current.chord,'C');
+ const other=P.playbackPlan(source,{id:'different',duration:20000},null,C);assert(other.events.every(e=>e.estimated));
+ const changed=P.playbackPlan({...source,sheet:source.sheet.replace('C  G','D  A')},track,null,C);assert(changed.events.every(e=>e.estimated));
+ assert.equal(P.playbackPlan(source,null,null,C).events.length,0);
+});
+test('split source rows share a phrase interval and keep chord occurrence order',()=>{
+ const source={sheet:'C     G\nUma frase\nAm   F\noriginal para estudo\nD\nSegunda frase original',kind:'personal'};
+ const plan=P.playbackPlan(source,{duration:30000},{lines:[{t:5000,text:'Uma frase original para estudo'},{t:20000,text:'Segunda frase original'}]},C);
+ assert.deepEqual(P.playbackAt(plan,10000,C).rows,[0,1]);
+ assert(plan.events[2].t>plan.events[1].t);assert.equal(plan.events[4].t,20000);
+ assert(plan.events.every((e,i)=>!i||e.t>=plan.events[i-1].t));
+});

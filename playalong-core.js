@@ -1,4 +1,4 @@
-/* Tempos explícitos de acordes: nenhuma duração é deduzida do tamanho da letra. */
+/* Marcações salvas e guia estimado, sempre identificados separadamente. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -99,5 +99,73 @@
       if(found){for(let b=found.b;b<found.b+found.bn;b++)result[b]={start:i,end:i+found.ln-1};cursor=found.b+found.bn;i+=found.ln-1;}
     }return result;
   }
-  return {events,signature,normalizeTiming,timeline,cueIndex,groupCues,alignLyrics,chartRows,matchChartLyrics};
+  function playbackPlan(song, track, lyrics, C) {
+    const text=String(song?.sheet||''),source=text.split('\n'),units=C.computeUnits(source.map(C.classifyLine));
+    const rows=song?.kind==='catalog'?[]:chartRows(text,C),lines=lyrics?.lines||[],links=matchChartLyrics(rows,lines,C);
+    const duration=track?.duration||0,automatic=[],groups=[];
+    links.forEach((link,i)=>{
+      if(!link)return;
+      let group=groups.at(-1);
+      if(!group||group.start!==link.start||group.end!==link.end){group={...link,rows:[]};groups.push(group);}
+      group.rows.push(i);
+    });
+    for(const group of groups){
+      const row=rows[group.rows[0]],t=lines[group.start].t;
+      automatic.push({line:row.chordLine>=0?row.chordLine:row.line,t});
+    }
+    // Personal line anchors replace automatic anchors at the same source position.
+    const personal=song?.anchors||[],anchored=new Set(personal.map(a=>a.line));
+    const reading=C.buildTimeline([...automatic.filter(a=>!anchored.has(a.line)),...personal],units.cum,units.total,duration);
+    const original=events(text,C),display=events(C.transposeSheet(text,song?.transpose||0).text,C);
+    const guide=original.map((event,i)=>{
+      const next=source[event.line+1]||'',paired=C.classifyLine(next)==='lyric';
+      const line=paired?event.line+1:event.line;
+      const length=Math.max(1,source[event.line].length,paired?next.length:0);
+      const fraction=Math.min(.98,event.column/length);
+      const w=units.cum[line]+(units.w[line]||0)*fraction;
+      return {...event,chord:display[i]?.chord||event.chord,t:C.timeAt(w,reading)||0,source:'structure',estimated:true};
+    });
+    for(const group of groups){
+      const start=lines[group.start].t,end=lines[group.end+1]?.t??duration;
+      if(!(end>start))continue;
+      const total=group.rows.reduce((n,i)=>n+Math.max(1,rows[i].text.trim().length),0);let offset=0;
+      for(const index of group.rows){
+        const row=rows[index],length=Math.max(1,row.text.trim().length),indent=row.text.length-row.text.trimStart().length;
+        for(const event of guide)if(event.line===row.chordLine){
+          event.t=start+(end-start)*(offset+Math.max(0,Math.min(length-.01,event.column-indent)))/total;
+          event.source='phrase';
+        }
+        offset+=length;
+      }
+    }
+    let previous=0;for(const event of guide){event.t=Math.max(previous,Math.min(duration,event.t));previous=event.t;}
+    const saved=timeline(song,track,C).filter((cue,i,all)=>!i||cue.event>all[i-1].event);
+    if(saved.length){
+      const base=guide.map(e=>e.t),controls=[...saved];
+      if(controls[0].event>0)controls.unshift({event:0,t:0});
+      controls.push({event:guide.length,t:duration});
+      for(let i=0;i<controls.length-1;i++){
+        const a=controls[i],b=controls[i+1],span=(base[b.event]??duration)-base[a.event];
+        for(let n=a.event;n<b.event;n++){
+          const fraction=span>0?(base[n]-base[a.event])/span:(n-a.event)/(b.event-a.event);
+          guide[n].t=a.t+(b.t-a.t)*Math.max(0,Math.min(1,fraction));
+        }
+      }
+      for(const cue of saved)Object.assign(guide[cue.event],{t:cue.t,source:'saved',estimated:false});
+    }
+    return {events:duration?guide:[],rows,links,lyrics:lines,units,reading,duration};
+  }
+  function playbackAt(plan, ms, C) {
+    if(!plan)return null;
+    const index=cueIndex(plan.events,ms),current=plan.events[index]||null,next=plan.events[index+1]||null;
+    const lyric=cueIndex(plan.lyrics,ms),matched=[];
+    plan.links.forEach((link,i)=>{if(link&&lyric>=link.start&&lyric<=link.end)matched.push(i);});
+    const w=C.positionAt(ms,plan.reading),line=C.unitAt(w,plan.units);
+    if(!matched.length){
+      let row=-1;plan.rows.forEach((r,i)=>{if((r.chordLine>=0?r.chordLine:r.line)<=line)row=i;});
+      if(row>=0)matched.push(row);
+    }
+    return {current,next,lyric,rows:matched,w,line};
+  }
+  return {events,signature,normalizeTiming,timeline,cueIndex,groupCues,alignLyrics,chartRows,matchChartLyrics,playbackPlan,playbackAt};
 });

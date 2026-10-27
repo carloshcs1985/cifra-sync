@@ -6,7 +6,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
-  const APP_VERSION = '8';
+  const APP_VERSION = '9';
   const STORE_KEY = 'cifrasync.v1';
   const TOKEN_KEY = 'cifrasync.token';
   const PKCE_KEY = 'cifrasync.pkce';
@@ -515,12 +515,15 @@
     S.lines = tr.text.split('\n');
     S.types = S.lines.map((l) => C.classifyLine(l));
     S.units = C.computeUnits(S.types);
+    const chordEvents=window.CifraPlayCore.events(tr.text,C);
     const frag = document.createDocumentFragment();
     S.lines.forEach((ln, i) => {
       const d = document.createElement('div');
       d.className = 'ln t-' + S.types[i];
       d.dataset.i = i;
       d.innerHTML = C.lineToHtml(ln, S.types[i]);
+      const rowEvents=chordEvents.filter(event=>event.line===i);
+      d.querySelectorAll('[data-chord]').forEach((b,n)=>{if(rowEvents[n])b.dataset.event=rowEvents[n].event;});
       frag.appendChild(d);
     });
     el.sheet.replaceChildren(frag);
@@ -590,7 +593,7 @@
   // Pontos (posição W → altura em pixels) para converter tempo em rolagem.
   function measure() {
     const u = S.units;
-    if (!u || !S.els.length) { S.pts = null; return; }
+    if (!u || !S.els.length || el.sheet.hidden) { S.pts = null; return; }
     const xs = [], ys = [];
     for (let i = 0; i < S.els.length; i++) {
       if (u.w[i] > 0) {
@@ -610,14 +613,17 @@
     S.timeline = S.units && S.track && song ? C.buildTimeline(song.anchors, S.units.cum, S.units.total, S.track.duration) : null;
   }
 
-  function highlight(w) {
+  function highlight(w,state) {
+    const event=state?.current?.event;
+    const hit=event===undefined?null:el.sheet.querySelector('[data-event="'+event+'"]');
+    const old=el.sheet.querySelector('.chord-hit.active');
+    if(old!==hit){old?.classList.remove('active');hit?.classList.add('active');}
     const i = C.unitAt(w, S.units);
     if (i === S.curUnit) return;
     $$('.ln.cur', el.sheet).forEach((e) => e.classList.remove('cur'));
     S.curUnit = i;
     if (i < 0 || !S.els[i]) return;
     S.els[i].classList.add('cur');
-    Study.focusChords(S.lines[i] || '', i>0 ? S.lines[i-1] : '');
     if (i > 0 && S.units.w[i - 1] === 0) S.els[i - 1].classList.add('cur');
   }
 
@@ -650,9 +656,11 @@
       }
       return;
     }
+    if (!S.pts && !el.sheet.hidden) measure();
     if (!syncing() || !S.timeline || !S.pts) { setResume(false); return; }
-    const w = C.positionAt(p, S.timeline);
-    highlight(w);
+    const state=Study.playback(p);
+    const w=state?.w??C.positionAt(p,S.timeline);
+    highlight(w,state);
     setResume(holding);
     if (holding) return;
     const y = C.interp(w, S.pts.xs, S.pts.ys);
@@ -685,6 +693,7 @@
     song.kind = 'personal';
     save();
     rebuildTimeline();
+    Study.refresh();
     markAnchors();
     const e = S.els[i];
     if (e) { e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); }
@@ -697,6 +706,7 @@
     song.kind = 'personal'; touch(song);
     save();
     rebuildTimeline();
+    Study.refresh();
     markAnchors();
   }
   function jumpToLine(i) {
@@ -1426,7 +1436,7 @@
     }catch(e){el.empty.innerHTML='<h2>Biblioteca indisponível</h2><p>Seus dados anteriores foram mantidos. Confira o espaço disponível e reabra o app.</p>';return;}
     applyTheme();
     measureCharRatio();
-    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),lookupChart:()=>lookupOnlineChart(true),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
+    Study.init({song:currentSong,track:()=>S.track,viewing:()=>!!S.viewingId,settings:()=>store.settings,save,seek,time:est,toggle:()=>ctl('toggle'),lookupChart:()=>lookupOnlineChart(true),notify:toast,changed:()=>{const song=currentSong();if(song){song.kind='personal';touch(song);}return save();},demo:()=>S.demo,recording:()=>S.recording,isPlaying:()=>S.isPlaying&&!S.viewingId,controls:updateChrome,sheetReady:()=>{if(!el.sheet.hidden)applyFont();},resetScroll:()=>{S.scrollF=0;S.holdUntil=0;}});
     $('#m-auto-charts').checked=store.settings.autoCharts!==false;
     $('#m-auto-charts').onchange=e=>{store.settings.autoCharts=e.target.checked;save();if(e.target.checked)lookupOnlineChart();else cancelOnlineChart();};
     bind();

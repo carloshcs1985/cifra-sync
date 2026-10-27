@@ -4,7 +4,7 @@
   const C = window.CifraCore, H = window.CifraStudyCore, DB = window.CifraDB;
   const $ = s => document.querySelector(s);
   let ctx, mode = 'together', lyrics = null, lyricEls = [], lyricAt = -1, currentId = '', requestId = 0, controller;
-  let shapePromise, shapes, selectedChord = '', selectedPosition = 0, status = '', barTicket = 0;
+  let shapePromise, shapes, selectedChord = '', selectedPosition = 0, status = '', barTicket = 0, barFocus = null;
   const esc = C.esc;
   function shapeData() {
     if (!shapePromise) shapePromise = fetch('assets/chord-shapes.json').then(r => { if (!r.ok) throw new Error('Diagramas indisponíveis.'); return r.json(); }).then(j => (shapes = j)).catch(e => { shapePromise = null; throw e; });
@@ -56,19 +56,27 @@
     if(!ctx)return;
     const ticket=++barTicket,bar=$('#chordbar');
     const items=chords();
-    if(ctx.settings().diagrams===false || mode==='chords' || mode==='together' || !items.length){bar.hidden=true;return;}
+    if(ctx.settings().diagrams===false || !['sheet','together'].includes(mode) || !items.length){bar.hidden=true;return;}
     try{
       await shapeData();if(ticket!==barTicket)return;
-      bar.innerHTML=items.slice(0,32).map(ch=>`<button class="study-chord-mini" data-chord="${esc(ch)}" aria-label="Ver posições de ${esc(ch)}"><strong>${esc(ch)}</strong>${shapeSvg(ch)}</button>`).join('');bar.hidden=false;
+      bar.innerHTML='<div class="chordbar-now"><small>ACORDE</small><strong id="chordbar-current">—</strong><span id="chordbar-timing">Dê play para acompanhar</span></div><div class="chordbar-cards">'+items.map(ch=>`<button class="study-chord-mini" data-chord="${esc(ch)}" aria-label="Ver posições de ${esc(ch)}"><strong>${esc(ch)}</strong>${shapeSvg(ch)}</button>`).join('')+'</div>';bar.hidden=false;barFocus=null;
+      focusChords(window.CifraTogether.playback(ctx.viewing()?0:ctx.time()));
+      ctx.sheetReady?.();
     }catch{bar.hidden=true;}
   }
-  function focusChords(line,previous) {
+  function focusChords(state) {
     const bar=$('#chordbar');if(bar.hidden)return;
-    const text=C.classifyLine(line)==='chords'?line:C.classifyLine(previous)==='chords'?previous:'';
-    const names=C.tokenize(text).filter(t=>C.parseChordToken(t.text)).map(t=>t.text.replace(/^\(|\)$/g,''));
-    let first;
-    for(const card of bar.children){const on=names.includes(card.dataset.chord);card.classList.toggle('active',on);if(on&&!first)first=card;}
-    if(first && (first.offsetLeft<bar.scrollLeft || first.offsetLeft+first.clientWidth>bar.scrollLeft+bar.clientWidth))bar.scrollTo({left:Math.max(0,first.offsetLeft-bar.clientWidth/3),behavior:'smooth'});
+    const cue=ctx.viewing()?null:state?.current,name=cue?.chord||'';
+    const label=cue?(cue.source==='saved'?'Marcação salva':cue.source==='phrase'?'Estimado pela frase':'Estimado pela estrutura'):'Dê play para acompanhar';
+    if($('#chordbar-current').textContent!== (name||'—'))$('#chordbar-current').textContent=name||'—';
+    if($('#chordbar-timing').textContent!==label)$('#chordbar-timing').textContent=label;
+    const list=bar.querySelector('.chordbar-cards');let active;
+    for(const card of list.children){
+      const on=card.dataset.chord===name;card.classList.toggle('active',on);
+      if(on){card.setAttribute('aria-current','true');active=card;}else card.removeAttribute('aria-current');
+    }
+    const changed=barFocus!==name;barFocus=name;
+    if(changed && active && (active.offsetLeft<list.scrollLeft || active.offsetLeft+active.clientWidth>list.scrollLeft+list.clientWidth))list.scrollTo({left:Math.max(0,active.offsetLeft-list.clientWidth/2+active.clientWidth/2),behavior:'smooth'});
   }
   async function openChord(chord) {
     selectedChord = chord; selectedPosition = 0;
@@ -95,7 +103,8 @@
     if (mode === 'chords') diagrams();
     if (mode === 'lyrics') renderLyrics();
     renderChordbar();
-    updateStrip(0);
+    ctx.sheetReady?.();
+    updateStrip(ctx.viewing()?0:ctx.time());
     ctx.controls?.();
   }
   function setStatus(text) { status = text; $('#study-status').textContent = text; }
@@ -172,7 +181,9 @@
   }
   function frame(ms, holding) {
     updateStrip(ms);
-    if (mode === 'together') return window.CifraTogether.frame(ms,holding);
+    const state=window.CifraTogether.playback(ms);
+    if(['sheet','together'].includes(mode))focusChords(state);
+    if (mode === 'together') return window.CifraTogether.frame(ms,holding,state);
     if (mode !== 'lyrics') return false;
     if (!lyrics || !lyricEls.length) return true;
     const timed = !!lyrics.lines.length;
@@ -219,5 +230,5 @@
   }
   function clear() { ++requestId;controller?.abort();lyrics=null;lyricAt=-1;window.CifraTogether.clear();setStatus('Carregando a música…');renderLyrics();updateStrip(0); }
   function refresh() { if(!ctx)return;document.documentElement.style.setProperty('--study-scale',ctx.settings().fontScale||1);window.CifraTogether.render(lyrics,status);renderChordbar();if(mode==='chords')diagrams(); if(mode!=='sheet'){$('#sheet').hidden=true;$('#empty').hidden=true;} }
-  window.CifraStudy={init,frame,refresh,clear,loadLyrics,importLrc,focusChords,mode:()=>mode,setMode};
+  window.CifraStudy={init,frame,refresh,clear,loadLyrics,importLrc,focusChords,mode:()=>mode,setMode,playback:ms=>window.CifraTogether.playback(ms)};
 })();
